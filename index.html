@@ -1,11 +1,1131 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Hello World</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Our Family Tree</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Phosphor Icons -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <!-- Google Font: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Clean, plain solid canvas background */
+    body {
+      background-color: #f8fafc;
+      font-family: 'Inter', sans-serif;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    #viewport {
+      background-color: #f8fafc;
+      cursor: grab;
+      touch-action: none;
+    }
+
+    #viewport.dragging {
+      cursor: grabbing;
+    }
+
+    /* Card styling */
+    .person-card {
+      transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+    .person-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
+    }
+  </style>
 </head>
-<body>
-	<h1>Hello, world!</h1>
+<body class="w-screen h-screen flex flex-col text-slate-800">
+
+  <!-- Top Navigation & Controls Bar -->
+  <header class="h-16 px-6 bg-white border-b border-slate-200 flex items-center justify-between z-20 shadow-xs shrink-0">
+    <!-- Brand / Title -->
+    <div class="flex items-center space-x-3">
+      <div class="w-9 h-9 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-base shadow-sm">
+        <i class="ph-bold ph-tree-structure"></i>
+      </div>
+      <div>
+        <h1 class="text-base font-bold text-slate-900 leading-tight">Our Family Tree</h1>
+        <p class="text-xs text-slate-500" id="statsSubhead">Showing 7 family members</p>
+      </div>
+    </div>
+
+    <!-- Center Search -->
+    <div class="relative w-64 hidden sm:block">
+      <i class="ph-bold ph-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-sm"></i>
+      <input 
+        id="searchInput"
+        type="text" 
+        placeholder="Find person by name..."
+        oninput="handleSearch(event)"
+        class="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-400"
+      >
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="flex items-center space-x-2">
+      <!-- Reset / Center View -->
+      <button onclick="centerView()" title="Center Tree" class="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg border border-slate-200 text-sm">
+        <i class="ph-bold ph-arrows-out-cardinal"></i>
+      </button>
+
+      <!-- Export Data -->
+      <button onclick="exportTreeJSON()" title="Download Backup File" class="px-3 py-1.5 text-xs font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-lg border border-slate-200 flex items-center gap-1.5">
+        <i class="ph-bold ph-download-simple"></i>
+        <span class="hidden md:inline">Export</span>
+      </button>
+
+      <!-- Import Data -->
+      <label title="Upload Backup File" class="px-3 py-1.5 text-xs font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-lg border border-slate-200 flex items-center gap-1.5 cursor-pointer">
+        <i class="ph-bold ph-upload-simple"></i>
+        <span class="hidden md:inline">Import</span>
+        <input type="file" id="importInput" accept=".json" class="hidden" onchange="importTreeJSON(event)">
+      </label>
+
+      <!-- Add Person Button -->
+      <button onclick="openAddModal()" class="px-3.5 py-1.5 text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white rounded-lg flex items-center gap-1.5 shadow-sm">
+        <i class="ph-bold ph-plus"></i>
+        <span>Add Person</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Interactive Canvas Viewport -->
+  <main class="relative flex-1 w-full h-full overflow-hidden bg-slate-50">
+    
+    <!-- Floating Zoom HUD -->
+    <div class="absolute bottom-6 left-6 z-10 flex flex-col bg-white border border-slate-200 rounded-xl shadow-md p-1">
+      <button onclick="zoomBy(0.15)" class="w-8 h-8 flex items-center justify-center text-slate-700 hover:bg-slate-100 rounded-lg text-sm" title="Zoom in">
+        <i class="ph-bold ph-plus"></i>
+      </button>
+      <div id="zoomText" class="text-[10px] font-semibold text-center text-slate-500 py-1">100%</div>
+      <button onclick="zoomBy(-0.15)" class="w-8 h-8 flex items-center justify-center text-slate-700 hover:bg-slate-100 rounded-lg text-sm" title="Zoom out">
+        <i class="ph-bold ph-minus"></i>
+      </button>
+    </div>
+
+    <!-- Canvas Pan/Zoom Wrapper -->
+    <div id="viewport" class="w-full h-full relative">
+      <div id="canvasRoot" class="absolute origin-top-left" style="transform: translate(0px, 0px) scale(1);">
+        <!-- SVG Connections Layer -->
+        <svg id="svgLayer" class="absolute left-0 top-0 pointer-events-none w-[6000px] h-[6000px] overflow-visible"></svg>
+        <!-- Cards HTML Layer -->
+        <div id="nodesLayer" class="absolute left-0 top-0 pointer-events-auto"></div>
+      </div>
+    </div>
+
+    <!-- Quick Help Tip -->
+    <div class="absolute bottom-6 right-6 hidden sm:flex items-center gap-2 bg-white/90 backdrop-blur px-3 py-1.5 border border-slate-200 rounded-full text-[11px] text-slate-500 shadow-sm pointer-events-none">
+      <span>• Click person to view & edit</span>
+      <span>• Drag background to pan</span>
+      <span>• Scroll to zoom</span>
+    </div>
+
+    <!-- Side Profile & Info Drawer -->
+    <aside id="sideDrawer" class="absolute top-0 right-0 h-full w-full max-w-sm bg-white border-l border-slate-200 shadow-xl z-30 transform translate-x-full transition-transform duration-200 ease-out flex flex-col">
+      <!-- Drawer Header -->
+      <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
+        <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Profile Details</span>
+        <button onclick="closeDrawer()" class="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100">
+          <i class="ph-bold ph-x text-lg"></i>
+        </button>
+      </div>
+
+      <!-- Drawer Body -->
+      <div class="flex-1 overflow-y-auto p-6 space-y-6" id="drawerBody">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <!-- Drawer Footer Actions -->
+      <div class="p-4 border-t border-slate-200 bg-slate-50 flex gap-2">
+        <button id="drawerEditBtn" class="flex-1 py-2 px-3 text-xs font-semibold bg-white border border-slate-200 rounded-lg hover:bg-slate-100 text-slate-700">
+          Edit Info
+        </button>
+        <button id="drawerConnectBtn" class="flex-1 py-2 px-3 text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white rounded-lg shadow-sm">
+          + Connect Relative
+        </button>
+      </div>
+    </aside>
+
+  </main>
+
+  <!-- Person Add / Edit Modal -->
+  <div id="personModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs hidden p-4">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
+      
+      <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+        <h3 id="modalTitle" class="text-sm font-bold text-slate-900">Add Family Member</h3>
+        <button onclick="closePersonModal()" class="text-slate-400 hover:text-slate-700 text-lg">
+          <i class="ph-bold ph-x"></i>
+        </button>
+      </div>
+
+      <form id="personForm" onsubmit="savePersonForm(event)" class="p-5 space-y-3.5 overflow-y-auto text-xs">
+        <input type="hidden" id="fieldId">
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Full Name *</label>
+          <input type="text" id="fieldName" required placeholder="e.g. Eleanor Vance" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-400 text-xs">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Birth Year *</label>
+            <input type="number" id="fieldBirthYear" required placeholder="e.g. 1958" min="1700" max="2099" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-400 text-xs">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Status</label>
+            <select id="fieldStatus" onchange="toggleDeathYearInput()" class="w-full px-2.5 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-400 text-xs">
+              <option value="living">Living</option>
+              <option value="deceased">Deceased</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="deathYearRow" class="hidden">
+          <label class="block font-semibold text-slate-700 mb-1">Passing Year</label>
+          <input type="number" id="fieldDeathYear" placeholder="e.g. 2021" min="1700" max="2099" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-400 text-xs">
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Relationship / Title</label>
+          <input type="text" id="fieldRole" placeholder="e.g. Grandmother, Father, Architect..." class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-400 text-xs">
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Photo URL (Optional)</label>
+          <input type="url" id="fieldPhoto" placeholder="https://example.com/photo.jpg" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-400 text-xs">
+          <p class="text-[10px] text-slate-400 mt-0.5">Leave blank for a clean initials avatar.</p>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Notes / Memories</label>
+          <textarea id="fieldBio" rows="2" placeholder="Add birthplace, favorite memories, or notes..." class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-400 text-xs resize-none"></textarea>
+        </div>
+
+        <div class="pt-3 border-t border-slate-200 flex items-center justify-between">
+          <button type="button" id="modalDeleteBtn" onclick="deleteCurrentPerson()" class="text-xs text-rose-600 hover:text-rose-800 font-medium">
+            Delete Person
+          </button>
+          <div class="flex gap-2">
+            <button type="button" onclick="closePersonModal()" class="px-3 py-1.5 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-100">
+              Cancel
+            </button>
+            <button type="submit" class="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-semibold shadow-sm">
+              Save
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Connect Relative Options Modal -->
+  <div id="relationModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs hidden p-4">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-sm p-5 space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div>
+          <h3 class="text-sm font-bold text-slate-900">Add Relative</h3>
+          <p class="text-xs text-slate-500" id="relationSubtitle">Connect someone to person</p>
+        </div>
+        <button onclick="closeRelationModal()" class="text-slate-400 hover:text-slate-700">
+          <i class="ph-bold ph-x text-lg"></i>
+        </button>
+      </div>
+
+      <div class="grid grid-cols-3 gap-2 text-center text-xs">
+        <button onclick="startAddRelatedPerson('child')" class="p-3 border border-slate-200 hover:border-slate-400 rounded-xl flex flex-col items-center gap-1 hover:bg-slate-50">
+          <div class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 text-base">
+            <i class="ph-bold ph-baby"></i>
+          </div>
+          <span class="font-semibold text-slate-700">Child</span>
+        </button>
+
+        <button onclick="startAddRelatedPerson('spouse')" class="p-3 border border-slate-200 hover:border-slate-400 rounded-xl flex flex-col items-center gap-1 hover:bg-slate-50">
+          <div class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-rose-600 text-base">
+            <i class="ph-bold ph-heart"></i>
+          </div>
+          <span class="font-semibold text-slate-700">Spouse</span>
+        </button>
+
+        <button onclick="startAddRelatedPerson('parent')" class="p-3 border border-slate-200 hover:border-slate-400 rounded-xl flex flex-col items-center gap-1 hover:bg-slate-50">
+          <div class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 text-base">
+            <i class="ph-bold ph-shield-check"></i>
+          </div>
+          <span class="font-semibold text-slate-700">Parent</span>
+        </button>
+      </div>
+
+      <!-- Or link an existing person in the tree -->
+      <div class="pt-3 border-t border-slate-100 text-xs">
+        <p class="font-medium text-slate-600 mb-2">Or link an existing member:</p>
+        <div class="flex gap-2">
+          <select id="linkSelect" class="flex-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none"></select>
+          <select id="linkRole" class="w-24 px-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none">
+            <option value="child">Child</option>
+            <option value="spouse">Spouse</option>
+            <option value="parent">Parent</option>
+          </select>
+          <button onclick="commitLinkExisting()" class="px-3 py-1.5 bg-slate-800 text-white font-medium rounded-lg hover:bg-slate-900">
+            Link
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Toast -->
+  <div id="toast" class="fixed bottom-6 right-6 z-50 transform translate-y-16 opacity-0 transition-all duration-200 flex items-center gap-2 px-3.5 py-2.5 bg-slate-900 text-white text-xs font-medium rounded-xl shadow-lg pointer-events-none">
+    <i class="ph-bold ph-check text-emerald-400 text-sm"></i>
+    <span id="toastMessage">Done</span>
+  </div>
+
+  <!-- Main Application Logic -->
+  <script>
+    // 1. Initial 3-Generation Sample Family Tree
+    const INITIAL_MEMBERS = [
+      // Grandparents
+      {
+        id: "p_1",
+        name: "Henry Hastings",
+        birthYear: 1940,
+        deathYear: 2018,
+        status: "deceased",
+        role: "Grandfather",
+        photo: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=250&q=80",
+        bio: "Veteran, watchmaker and avid reader.",
+        parents: [],
+        spouses: ["p_2"],
+        children: ["p_3"]
+      },
+      {
+        id: "p_2",
+        name: "Margaret Hastings",
+        birthYear: 1944,
+        deathYear: null,
+        status: "living",
+        role: "Grandmother",
+        photo: "https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=250&q=80",
+        bio: "Former school headmistress, loves baking and ceramics.",
+        parents: [],
+        spouses: ["p_1"],
+        children: ["p_3"]
+      },
+      // Parents
+      {
+        id: "p_3",
+        name: "Arthur Hastings",
+        birthYear: 1968,
+        deathYear: null,
+        status: "living",
+        role: "Father",
+        photo: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=250&q=80",
+        bio: "Civil architect, cyclist and landscape painter.",
+        parents: ["p_1", "p_2"],
+        spouses: ["p_4"],
+        children: ["p_5", "p_6"]
+      },
+      {
+        id: "p_4",
+        name: "Elena Rosario",
+        birthYear: 1970,
+        deathYear: null,
+        status: "living",
+        role: "Mother",
+        photo: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=250&q=80",
+        bio: "Pediatric doctor and classical violin player.",
+        parents: [],
+        spouses: ["p_3"],
+        children: ["p_5", "p_6"]
+      },
+      // Children
+      {
+        id: "p_5",
+        name: "Julian Hastings",
+        birthYear: 1996,
+        deathYear: null,
+        status: "living",
+        role: "Son",
+        photo: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=250&q=80",
+        bio: "Web developer and marathon runner.",
+        parents: ["p_3", "p_4"],
+        spouses: ["p_7"],
+        children: []
+      },
+      {
+        id: "p_6",
+        name: "Sophie Hastings",
+        birthYear: 2000,
+        deathYear: null,
+        status: "living",
+        role: "Daughter",
+        photo: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80",
+        bio: "Photographer and ecology student.",
+        parents: ["p_3", "p_4"],
+        spouses: [],
+        children: []
+      },
+      {
+        id: "p_7",
+        name: "Clara Brooks",
+        birthYear: 1997,
+        deathYear: null,
+        status: "living",
+        role: "Spouse (Julian)",
+        photo: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=250&q=80",
+        bio: "Architectural historian.",
+        parents: [],
+        spouses: ["p_5"],
+        children: []
+      }
+    ];
+
+    let members = [];
+    let selectedId = null;
+    let pendingRelationTargetId = null;
+    let pendingRelationType = null;
+
+    // Viewport transform (Pan & Zoom)
+    let transform = { x: 50, y: 50, scale: 0.95 };
+    let isDragging = false;
+    let startPoint = { x: 0, y: 0 };
+    let nodeCoords = {}; // id -> { x, y, width: 220, height: 96 }
+
+    // On Load
+    window.addEventListener('DOMContentLoaded', () => {
+      const stored = localStorage.getItem('clean_family_tree');
+      if (stored) {
+        try {
+          members = JSON.parse(stored);
+        } catch (e) {
+          members = [...INITIAL_MEMBERS];
+        }
+      } else {
+        members = [...INITIAL_MEMBERS];
+      }
+
+      setupPanZoom();
+      renderAll();
+      setTimeout(centerView, 80);
+    });
+
+    function saveToStorage() {
+      localStorage.setItem('clean_family_tree', JSON.stringify(members));
+      updateHeaderStats();
+    }
+
+    function updateHeaderStats() {
+      const sub = document.getElementById('statsSubhead');
+      if (sub) sub.innerText = `Showing ${members.length} family members`;
+    }
+
+    // Helper: calculate age based on current year (or age at passing)
+    function computeAgeString(m) {
+      const currentYear = 2026;
+      if (!m.birthYear) return '';
+      if (m.status === 'deceased') {
+        const passed = m.deathYear || currentYear;
+        const ageAtDeath = passed - m.birthYear;
+        return `${m.birthYear}–${m.deathYear || '†'} (Aged ${ageAtDeath})`;
+      } else {
+        const age = currentYear - m.birthYear;
+        return `Age ${age} (b. ${m.birthYear})`;
+      }
+    }
+
+    // 2. Tree Hierarchy & Position Calculation
+    function calculateGenerations() {
+      const genMap = {};
+      const roots = members.filter(m => (!m.parents || m.parents.length === 0));
+
+      function assignLevel(id, lvl) {
+        if (genMap[id] !== undefined && genMap[id] >= lvl) return;
+        genMap[id] = lvl;
+        const person = members.find(m => m.id === id);
+        if (!person) return;
+
+        // Spouses share same level
+        (person.spouses || []).forEach(sId => {
+          if (genMap[sId] === undefined) genMap[sId] = lvl;
+        });
+
+        // Children at next level down
+        (person.children || []).forEach(cId => {
+          assignLevel(cId, lvl + 1);
+        });
+      }
+
+      roots.forEach(r => assignLevel(r.id, 0));
+      members.forEach(m => {
+        if (genMap[m.id] === undefined) genMap[m.id] = 0;
+      });
+
+      const tiers = {};
+      Object.keys(genMap).forEach(id => {
+        const lvl = genMap[id];
+        if (!tiers[lvl]) tiers[lvl] = [];
+        tiers[lvl].push(id);
+      });
+      return tiers;
+    }
+
+    function computeNodeLayout() {
+      const tiers = calculateGenerations();
+      const cardWidth = 230;
+      const cardHeight = 92;
+      const spaceX = 40;
+      const spaceY = 120;
+
+      nodeCoords = {};
+      const sortedKeys = Object.keys(tiers).map(Number).sort((a,b) => a - b);
+
+      sortedKeys.forEach(level => {
+        const rowIds = tiers[level];
+        // Keep married couples together in ordering
+        const ordered = [];
+        const set = new Set(rowIds);
+
+        rowIds.forEach(id => {
+          if (ordered.includes(id)) return;
+          ordered.push(id);
+          const p = members.find(m => m.id === id);
+          if (p && p.spouses) {
+            p.spouses.forEach(sId => {
+              if (set.has(sId) && !ordered.includes(sId)) {
+                ordered.push(sId);
+              }
+            });
+          }
+        });
+
+        const rowTotalWidth = ordered.length * (cardWidth + spaceX) - spaceX;
+        const startX = 600 - (rowTotalWidth / 2);
+        const startY = 100 + level * (cardHeight + spaceY);
+
+        ordered.forEach((id, idx) => {
+          nodeCoords[id] = {
+            x: startX + idx * (cardWidth + spaceX),
+            y: startY,
+            width: cardWidth,
+            height: cardHeight
+          };
+        });
+      });
+    }
+
+    // 3. Rendering Nodes and SVG Lines
+    function renderAll() {
+      computeNodeLayout();
+      renderCards();
+      renderConnections();
+      updateHeaderStats();
+    }
+
+    function renderCards() {
+      const container = document.getElementById('nodesLayer');
+      container.innerHTML = '';
+
+      members.forEach(m => {
+        const pos = nodeCoords[m.id] || { x: 400, y: 300, width: 230, height: 92 };
+        const isSelected = selectedId === m.id;
+        const ageText = computeAgeString(m);
+        const initials = m.name ? m.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '?';
+
+        const card = document.createElement('div');
+        card.id = `card-${m.id}`;
+        card.className = `person-card absolute bg-white rounded-xl border ${
+          isSelected ? 'border-slate-900 ring-2 ring-slate-900 shadow-md' : 'border-slate-200 shadow-xs'
+        } p-3 flex items-center space-x-3 cursor-pointer select-none`;
+        card.style.width = `${pos.width}px`;
+        card.style.height = `${pos.height}px`;
+        card.style.transform = `translate(${pos.x}px, ${pos.y}px)`;
+
+        card.innerHTML = `
+          <!-- Photo / Avatar -->
+          <div class="w-12 h-12 rounded-lg bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center font-bold text-slate-600 text-xs">
+            ${m.photo 
+              ? `<img src="${m.photo}" alt="${m.name}" class="w-full h-full object-cover" onerror="this.onerror=null; this.parentElement.innerText='${initials}'">` 
+              : `<span>${initials}</span>`
+            }
+          </div>
+
+          <!-- Person Info -->
+          <div class="flex-1 min-w-0">
+            <h4 class="text-xs font-bold text-slate-900 truncate leading-tight">${m.name}</h4>
+            <p class="text-[11px] font-semibold text-slate-500 truncate mt-0.5">${m.role || 'Family Member'}</p>
+            <p class="text-[10px] text-slate-400 truncate mt-0.5">${ageText}</p>
+          </div>
+        `;
+
+        card.onclick = (e) => {
+          e.stopPropagation();
+          selectPerson(m.id);
+        };
+
+        container.appendChild(card);
+      });
+    }
+
+    function renderConnections() {
+      const svg = document.getElementById('svgLayer');
+      svg.innerHTML = '';
+
+      // 1. Spousal horizontal links (solid soft gray line with small knot)
+      const drawnSpousePairs = new Set();
+      members.forEach(p => {
+        const from = nodeCoords[p.id];
+        if (!from) return;
+
+        (p.spouses || []).forEach(sId => {
+          const key = [p.id, sId].sort().join('--');
+          if (drawnSpousePairs.has(key)) return;
+          drawnSpousePairs.add(key);
+
+          const to = nodeCoords[sId];
+          if (!to) return;
+
+          // Connect sides of neighboring spouse cards
+          const x1 = from.x < to.x ? from.x + from.width : from.x;
+          const y1 = from.y + from.height / 2;
+          const x2 = from.x < to.x ? to.x : to.x + to.width;
+          const y2 = to.y + to.height / 2;
+
+          // Horizontal connector
+          const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          line.setAttribute('x1', x1);
+          line.setAttribute('y1', y1);
+          line.setAttribute('x2', x2);
+          line.setAttribute('y2', y2);
+          line.setAttribute('stroke', '#cbd5e1'); // Slate-300
+          line.setAttribute('stroke-width', '2');
+          svg.appendChild(line);
+
+          // Small indicator ring
+          const midX = (x1 + x2) / 2;
+          const midY = (y1 + y2) / 2;
+          const ring = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          ring.setAttribute('cx', midX);
+          ring.setAttribute('cy', midY);
+          ring.setAttribute('r', '3');
+          ring.setAttribute('fill', '#94a3b8');
+          svg.appendChild(ring);
+        });
+      });
+
+      // 2. Parent-to-child links (stepped orthogonal paths)
+      members.forEach(child => {
+        const childPos = nodeCoords[child.id];
+        if (!childPos) return;
+
+        const parentObjs = (child.parents || []).map(pId => ({ id: pId, pos: nodeCoords[pId] })).filter(p => p.pos);
+        if (parentObjs.length === 0) return;
+
+        let startX, startY;
+        if (parentObjs.length >= 2) {
+          const p1 = parentObjs[0].pos;
+          const p2 = parentObjs[1].pos;
+          startX = (p1.x + p1.width / 2 + p2.x + p2.width / 2) / 2;
+          startY = Math.max(p1.y + p1.height, p2.y + p2.height);
+        } else {
+          startX = parentObjs[0].pos.x + parentObjs[0].pos.width / 2;
+          startY = parentObjs[0].pos.y + parentObjs[0].pos.height;
+        }
+
+        const endX = childPos.x + childPos.width / 2;
+        const endY = childPos.y;
+
+        // Clean stepped curve path
+        const midY = startY + (endY - startY) * 0.5;
+        const d = `M ${startX} ${startY} C ${startX} ${midY}, ${endX} ${midY}, ${endX} ${endY}`;
+
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', d);
+        path.setAttribute('stroke', '#94a3b8'); // Slate-400
+        path.setAttribute('stroke-width', '1.75');
+        path.setAttribute('fill', 'none');
+        svg.appendChild(path);
+
+        // Junction dot at child top
+        const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        dot.setAttribute('cx', endX);
+        dot.setAttribute('cy', endY);
+        dot.setAttribute('r', '2.5');
+        dot.setAttribute('fill', '#64748b');
+        svg.appendChild(dot);
+      });
+    }
+
+    // 4. Pan & Zoom Canvas Navigation
+    function setupPanZoom() {
+      const viewport = document.getElementById('viewport');
+
+      viewport.addEventListener('mousedown', (e) => {
+        if (e.target.closest('.person-card')) return;
+        isDragging = true;
+        viewport.classList.add('dragging');
+        startPoint = { x: e.clientX - transform.x, y: e.clientY - transform.y };
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        transform.x = e.clientX - startPoint.x;
+        transform.y = e.clientY - startPoint.y;
+        updateTransform();
+      });
+
+      window.addEventListener('mouseup', () => {
+        if (isDragging) {
+          isDragging = false;
+          viewport.classList.remove('dragging');
+        }
+      });
+
+      // Wheel Zoom
+      viewport.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const factor = e.deltaY < 0 ? 1.08 : 0.92;
+        zoomAtPoint(factor, e.clientX, e.clientY);
+      }, { passive: false });
+
+      // Click outside to close drawer
+      viewport.addEventListener('click', (e) => {
+        if (!e.target.closest('.person-card') && !e.target.closest('#sideDrawer')) {
+          closeDrawer();
+        }
+      });
+    }
+
+    function zoomAtPoint(factor, clientX, clientY) {
+      const newScale = Math.min(Math.max(transform.scale * factor, 0.4), 2.0);
+      if (newScale === transform.scale) return;
+
+      const viewportRect = document.getElementById('viewport').getBoundingClientRect();
+      const pointerX = clientX - viewportRect.left;
+      const pointerY = clientY - viewportRect.top;
+
+      transform.x = pointerX - (pointerX - transform.x) * (newScale / transform.scale);
+      transform.y = pointerY - (pointerY - transform.y) * (newScale / transform.scale);
+      transform.scale = newScale;
+
+      updateTransform();
+    }
+
+    function zoomBy(step) {
+      const vp = document.getElementById('viewport');
+      const rect = vp.getBoundingClientRect();
+      zoomAtPoint(1 + step, rect.left + rect.width / 2, rect.top + rect.height / 2);
+    }
+
+    function updateTransform() {
+      const root = document.getElementById('canvasRoot');
+      root.style.transform = `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`;
+      document.getElementById('zoomText').innerText = `${Math.round(transform.scale * 100)}%`;
+    }
+
+    function centerView() {
+      const ids = Object.keys(nodeCoords);
+      if (ids.length === 0) return;
+
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      ids.forEach(id => {
+        const c = nodeCoords[id];
+        if (c.x < minX) minX = c.x;
+        if (c.y < minY) minY = c.y;
+        if (c.x + c.width > maxX) maxX = c.x + c.width;
+        if (c.y + c.height > maxY) maxY = c.y + c.height;
+      });
+
+      const vp = document.getElementById('viewport');
+      const vpWidth = vp.clientWidth || window.innerWidth;
+      const vpHeight = vp.clientHeight || window.innerHeight;
+
+      const treeWidth = (maxX - minX) + 160;
+      const treeHeight = (maxY - minY) + 160;
+
+      const scale = Math.min(Math.min(vpWidth / treeWidth, vpHeight / treeHeight), 1.0);
+      transform.scale = Math.max(0.5, scale);
+      transform.x = (vpWidth - treeWidth * transform.scale) / 2 - minX * transform.scale + 80 * transform.scale;
+      transform.y = 60;
+      updateTransform();
+    }
+
+    // 5. Drawer Profile Presentation
+    function selectPerson(id) {
+      selectedId = id;
+      const person = members.find(m => m.id === id);
+      if (!person) return;
+
+      // Update card visual state
+      document.querySelectorAll('.person-card').forEach(c => {
+        c.className = c.className.replace('border-slate-900 ring-2 ring-slate-900 shadow-md', 'border-slate-200 shadow-xs');
+      });
+      const activeCard = document.getElementById(`card-${id}`);
+      if (activeCard) {
+        activeCard.className = activeCard.className.replace('border-slate-200 shadow-xs', 'border-slate-900 ring-2 ring-slate-900 shadow-md');
+      }
+
+      renderDrawerContent(person);
+      document.getElementById('sideDrawer').classList.remove('translate-x-full');
+    }
+
+    function closeDrawer() {
+      selectedId = null;
+      document.querySelectorAll('.person-card').forEach(c => {
+        c.className = c.className.replace('border-slate-900 ring-2 ring-slate-900 shadow-md', 'border-slate-200 shadow-xs');
+      });
+      document.getElementById('sideDrawer').classList.add('translate-x-full');
+    }
+
+    function renderDrawerContent(p) {
+      const body = document.getElementById('drawerBody');
+      const initials = p.name ? p.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '?';
+      const ageStr = computeAgeString(p);
+
+      const parents = members.filter(m => (p.parents || []).includes(m.id));
+      const spouses = members.filter(m => (p.spouses || []).includes(m.id));
+      const children = members.filter(m => (p.children || []).includes(m.id));
+
+      body.innerHTML = `
+        <div class="flex items-center gap-4">
+          <div class="w-16 h-16 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center font-bold text-slate-600 text-lg">
+            ${p.photo ? `<img src="${p.photo}" class="w-full h-full object-cover">` : initials}
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-slate-900">${p.name}</h3>
+            <p class="text-xs font-semibold text-slate-500 mt-0.5">${p.role || 'Family Member'}</p>
+            <p class="text-[11px] text-slate-400 mt-0.5">${ageStr}</p>
+          </div>
+        </div>
+
+        ${p.bio ? `
+          <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 leading-relaxed">
+            ${p.bio}
+          </div>
+        ` : ''}
+
+        <!-- Connected Relationships -->
+        <div class="space-y-4 pt-2">
+          <div>
+            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Parents</span>
+            ${parents.length > 0 ? parents.map(m => relatedItemRow(m, 'Parent')).join('') : '<p class="text-xs text-slate-400 italic">None recorded</p>'}
+          </div>
+
+          <div>
+            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Spouses / Partners</span>
+            ${spouses.length > 0 ? spouses.map(m => relatedItemRow(m, 'Spouse')).join('') : '<p class="text-xs text-slate-400 italic">None recorded</p>'}
+          </div>
+
+          <div>
+            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Children</span>
+            ${children.length > 0 ? children.map(m => relatedItemRow(m, 'Child')).join('') : '<p class="text-xs text-slate-400 italic">None recorded</p>'}
+          </div>
+        </div>
+      `;
+
+      document.getElementById('drawerEditBtn').onclick = () => openEditModal(p.id);
+      document.getElementById('drawerConnectBtn').onclick = () => openRelationModal(p.id);
+    }
+
+    function relatedItemRow(person, relationType) {
+      return `
+        <div onclick="selectPerson('${person.id}')" class="flex items-center justify-between p-2 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer mb-1.5 transition">
+          <div class="flex items-center gap-2.5">
+            <div class="w-7 h-7 rounded bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600">
+              ${person.name ? person.name[0] : '?'}
+            </div>
+            <div>
+              <p class="text-xs font-semibold text-slate-800">${person.name}</p>
+              <p class="text-[10px] text-slate-400">${person.birthYear || 'Unknown year'}</p>
+            </div>
+          </div>
+          <span class="text-[10px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded">${relationType}</span>
+        </div>
+      `;
+    }
+
+    // 6. Person Add / Edit Modal
+    function openAddModal() {
+      document.getElementById('modalTitle').innerText = "Add Family Member";
+      document.getElementById('personForm').reset();
+      document.getElementById('fieldId').value = "";
+      document.getElementById('modalDeleteBtn').classList.add('hidden');
+      toggleDeathYearInput();
+      document.getElementById('personModal').classList.remove('hidden');
+    }
+
+    function openEditModal(id) {
+      const person = members.find(m => m.id === id);
+      if (!person) return;
+
+      document.getElementById('modalTitle').innerText = `Edit: ${person.name}`;
+      document.getElementById('fieldId').value = person.id;
+      document.getElementById('fieldName').value = person.name || '';
+      document.getElementById('fieldBirthYear').value = person.birthYear || '';
+      document.getElementById('fieldStatus').value = person.status || 'living';
+      document.getElementById('fieldDeathYear').value = person.deathYear || '';
+      document.getElementById('fieldRole').value = person.role || '';
+      document.getElementById('fieldPhoto').value = person.photo || '';
+      document.getElementById('fieldBio').value = person.bio || '';
+
+      document.getElementById('modalDeleteBtn').classList.remove('hidden');
+      toggleDeathYearInput();
+      document.getElementById('personModal').classList.remove('hidden');
+    }
+
+    function closePersonModal() {
+      document.getElementById('personModal').classList.add('hidden');
+    }
+
+    function toggleDeathYearInput() {
+      const status = document.getElementById('fieldStatus').value;
+      const row = document.getElementById('deathYearRow');
+      if (status === 'deceased') {
+        row.classList.remove('hidden');
+      } else {
+        row.classList.add('hidden');
+      }
+    }
+
+    function savePersonForm(e) {
+      e.preventDefault();
+      const id = document.getElementById('fieldId').value;
+      const name = document.getElementById('fieldName').value.trim();
+      const birthYear = parseInt(document.getElementById('fieldBirthYear').value, 10);
+      const status = document.getElementById('fieldStatus').value;
+      const deathYearVal = document.getElementById('fieldDeathYear').value;
+      const deathYear = (status === 'deceased' && deathYearVal) ? parseInt(deathYearVal, 10) : null;
+      const role = document.getElementById('fieldRole').value.trim();
+      const photo = document.getElementById('fieldPhoto').value.trim();
+      const bio = document.getElementById('fieldBio').value.trim();
+
+      if (id) {
+        // Edit existing
+        const p = members.find(m => m.id === id);
+        if (p) {
+          p.name = name;
+          p.birthYear = birthYear;
+          p.status = status;
+          p.deathYear = deathYear;
+          p.role = role;
+          p.photo = photo;
+          p.bio = bio;
+          showToast(`Updated ${name}`);
+        }
+      } else {
+        // Create new
+        const newId = `p_${Date.now()}`;
+        const newPerson = {
+          id: newId,
+          name,
+          birthYear,
+          status,
+          deathYear,
+          role,
+          photo,
+          bio,
+          parents: [],
+          spouses: [],
+          children: []
+        };
+        members.push(newPerson);
+
+        // If part of "Connect Relative" workflow
+        if (pendingRelationTargetId && pendingRelationType) {
+          linkTwo(pendingRelationTargetId, newId, pendingRelationType);
+          pendingRelationTargetId = null;
+          pendingRelationType = null;
+        }
+
+        showToast(`Added ${name}`);
+        selectedId = newId;
+      }
+
+      closePersonModal();
+      saveToStorage();
+      renderAll();
+      if (selectedId) selectPerson(selectedId);
+    }
+
+    function deleteCurrentPerson() {
+      const id = document.getElementById('fieldId').value;
+      if (!id) return;
+
+      const p = members.find(m => m.id === id);
+      const name = p ? p.name : 'Person';
+
+      members.forEach(m => {
+        m.parents = (m.parents || []).filter(x => x !== id);
+        m.spouses = (m.spouses || []).filter(x => x !== id);
+        m.children = (m.children || []).filter(x => x !== id);
+      });
+
+      members = members.filter(m => m.id !== id);
+      delete nodeCoords[id];
+
+      closePersonModal();
+      closeDrawer();
+      saveToStorage();
+      renderAll();
+      showToast(`Removed ${name}`);
+    }
+
+    // 7. Connect Relative Modal Logic
+    function openRelationModal(personId) {
+      const p = members.find(m => m.id === personId);
+      if (!p) return;
+
+      pendingRelationTargetId = personId;
+      document.getElementById('relationSubtitle').innerText = `Connect to ${p.name}`;
+
+      // Populate existing dropdown
+      const sel = document.getElementById('linkSelect');
+      sel.innerHTML = '';
+      members.filter(m => m.id !== personId).forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m.id;
+        opt.innerText = `${m.name} (${m.birthYear || '?'})`;
+        sel.appendChild(opt);
+      });
+
+      document.getElementById('relationModal').classList.remove('hidden');
+    }
+
+    function closeRelationModal() {
+      document.getElementById('relationModal').classList.add('hidden');
+    }
+
+    function startAddRelatedPerson(type) {
+      pendingRelationType = type;
+      closeRelationModal();
+      openAddModal();
+      document.getElementById('modalTitle').innerText = `Add New ${type.toUpperCase()}`;
+      document.getElementById('fieldRole').value = type.charAt(0).toUpperCase() + type.slice(1);
+    }
+
+    function commitLinkExisting() {
+      const targetId = document.getElementById('linkSelect').value;
+      const role = document.getElementById('linkRole').value;
+      if (!targetId || !pendingRelationTargetId) return;
+
+      linkTwo(pendingRelationTargetId, targetId, role);
+      closeRelationModal();
+      saveToStorage();
+      renderAll();
+      selectPerson(pendingRelationTargetId);
+      showToast("Relation linked");
+    }
+
+    function linkTwo(baseId, targetId, role) {
+      const base = members.find(m => m.id === baseId);
+      const target = members.find(m => m.id === targetId);
+      if (!base || !target) return;
+
+      base.parents = base.parents || [];
+      base.spouses = base.spouses || [];
+      base.children = base.children || [];
+
+      target.parents = target.parents || [];
+      target.spouses = target.spouses || [];
+      target.children = target.children || [];
+
+      if (role === 'child') {
+        if (!base.children.includes(targetId)) base.children.push(targetId);
+        if (!target.parents.includes(baseId)) target.parents.push(baseId);
+      } else if (role === 'parent') {
+        if (!base.parents.includes(targetId)) base.parents.push(targetId);
+        if (!target.children.includes(baseId)) target.children.push(baseId);
+      } else if (role === 'spouse') {
+        if (!base.spouses.includes(targetId)) base.spouses.push(targetId);
+        if (!target.spouses.includes(baseId)) target.spouses.push(baseId);
+      }
+    }
+
+    // 8. Search Filter
+    function handleSearch(e) {
+      const q = e.target.value.toLowerCase().trim();
+      if (!q) return;
+
+      const found = members.find(m => m.name.toLowerCase().includes(q));
+      if (found && nodeCoords[found.id]) {
+        selectPerson(found.id);
+        const pos = nodeCoords[found.id];
+        const vp = document.getElementById('viewport');
+        transform.x = vp.clientWidth / 2 - (pos.x + pos.width / 2) * transform.scale;
+        transform.y = vp.clientHeight / 2 - (pos.y + pos.height / 2) * transform.scale;
+        updateTransform();
+      }
+    }
+
+    // 9. Export & Import
+    function exportTreeJSON() {
+      const dataStr = JSON.stringify(members, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `family_tree_${new Date().toISOString().slice(0, 10)}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+      showToast("Tree exported to JSON file");
+    }
+
+    function importTreeJSON(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        try {
+          const parsed = JSON.parse(evt.target.result);
+          if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].id) {
+            members = parsed;
+            saveToStorage();
+            renderAll();
+            centerView();
+            showToast(`Loaded ${parsed.length} members`);
+          } else {
+            showToast("Invalid JSON structure");
+          }
+        } catch (err) {
+          showToast("Failed to parse file");
+        }
+      };
+      reader.readAsText(file);
+      e.target.value = '';
+    }
+
+    // 10. Toast Notification
+    let toastTimer;
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastMessage').innerText = msg;
+      toast.classList.remove('translate-y-16', 'opacity-0');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        toast.classList.add('translate-y-16', 'opacity-0');
+      }, 2500);
+    }
+  </script>
 </body>
 </html>
