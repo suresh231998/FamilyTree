@@ -24,7 +24,6 @@
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     .canvas-viewport { touch-action: none; user-select: none; }
     .dimmed { opacity: 0.22 !important; filter: grayscale(80%); transition: all 0.3s ease; }
-    .bloodline-highlight { ring: 4px; ring-color: #6366f1; transform: scale(1.04); z-index: 30; }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans antialiased overflow-hidden flex flex-col h-screen">
@@ -111,9 +110,10 @@
     </div>
 
     <!-- VIEW 2: Pan & Zoom Graph Canvas -->
-    <div id="canvasView" class="hidden absolute inset-0 canvas-viewport bg-slate-50 cursor-grab active:cursor-grabbing">
-      <svg id="svgEdges" class="absolute inset-0 w-full h-full pointer-events-none z-0"></svg>
-      <div id="treeContainer" class="absolute origin-top-left z-10"></div>
+    <div id="canvasView" class="hidden absolute inset-0 canvas-viewport bg-slate-50 cursor-grab active:cursor-grabbing overflow-hidden">
+      <div id="treeContainer" class="absolute origin-top-left" style="transform: translate(0px, 0px) scale(1);">
+        <svg id="svgEdges" class="absolute inset-0 pointer-events-none" style="z-index: 1;"></svg>
+      </div>
       
       <!-- Floating HUD controls -->
       <div class="absolute bottom-6 right-4 flex flex-col gap-2 z-20">
@@ -161,7 +161,6 @@
           <input type="text" id="inpName" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
         </div>
 
-        <!-- Birthday & Milestone Tracking -->
         <div class="grid grid-cols-2 gap-2">
           <div>
             <label class="block font-semibold text-slate-600 mb-1">Exact Birthday</label>
@@ -173,7 +172,6 @@
           </div>
         </div>
 
-        <!-- Direct Photo Upload with Camera / Files -->
         <div>
           <label class="block font-semibold text-slate-600 mb-1">Profile Photo</label>
           <div class="flex gap-2 items-center">
@@ -185,7 +183,6 @@
           </div>
         </div>
 
-        <!-- Bio & Family Stories -->
         <div>
           <label class="block font-semibold text-slate-600 mb-1">Bio, Anecdotes & Memories</label>
           <textarea id="inpBio" rows="2" placeholder="Life stories, career, milestones..." class="w-full px-3 py-1.5 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"></textarea>
@@ -224,14 +221,13 @@
     // -----------------------------------------------------------------
     // 1. CONFIGURATION & STATE
     // -----------------------------------------------------------------
-    // Insert your Firebase credentials here once when ready:
     const firebaseConfig = {
       apiKey: "",
       databaseURL: "",
       projectId: ""
     };
 
-    const ADMIN_PASSCODE = "1234"; // Change your admin passcode here
+    const ADMIN_PASSCODE = "1234";
     let isAdminUnlocked = false;
 
     let familyData = [
@@ -251,7 +247,7 @@
     // 2. INITIALIZATION & SYNC
     // -----------------------------------------------------------------
     function initApp() {
-      // Setup PWA Manifest dynamically
+      // PWA Manifest
       const manifest = {
         name: "Our Family Tree",
         short_name: "FamilyTree",
@@ -261,15 +257,13 @@
         theme_color: "#4f46e5",
         icons: [{ src: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png", sizes: "512x512", type: "image/png" }]
       };
-      const stringManifest = JSON.stringify(manifest);
-      const blob = new Blob([stringManifest], {type: 'application/json'});
-      const manifestURL = URL.createObjectURL(blob);
+      const blob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
       const link = document.createElement('link');
       link.rel = 'manifest';
-      link.href = manifestURL;
+      link.href = URL.createObjectURL(blob);
       document.head.appendChild(link);
 
-      // Deep Linking: Read URL hash (e.g. index.html#person=5)
+      // Deep Linking: Read URL hash
       const hash = window.location.hash;
       if (hash && hash.includes('person=')) {
         const id = hash.split('person=')[1];
@@ -282,7 +276,7 @@
         try { familyData = JSON.parse(saved); } catch(e){}
       }
 
-      // Firebase connect if keys are provided
+      // Firebase connect
       if (firebaseConfig.apiKey && firebaseConfig.databaseURL) {
         try {
           firebase.initializeApp(firebaseConfig);
@@ -314,36 +308,179 @@
     }
 
     // -----------------------------------------------------------------
-    // 3. BIRTHDAYS & MILESTONES CALCULATION
+    // 3. GENERATION ENGINE & TREE LAYOUT
     // -----------------------------------------------------------------
-    function updateBirthdayTicker() {
-      const today = new Date();
-      const currentYear = today.getFullYear();
-      const upcoming = [];
-
+    function calculateGenerations() {
+      const levels = {};
+      
       familyData.forEach(p => {
-        if (!p.birthday || p.deathDate) return;
-        const bdate = new Date(p.birthday);
-        let nextBday = new Date(currentYear, bdate.getMonth(), bdate.getDate());
-        if (nextBday < today) {
-          nextBday = new Date(currentYear + 1, bdate.getMonth(), bdate.getDate());
-        }
-        const diffDays = Math.ceil((nextBday - today) / (1000 * 60 * 60 * 24));
-        const turningAge = nextBday.getFullYear() - bdate.getFullYear();
-        if (diffDays <= 60) {
-          upcoming.push({ name: p.name, days: diffDays, age: turningAge });
+        if (!p.parents || p.parents.length === 0) {
+          levels[p.id] = 0;
         }
       });
 
-      upcoming.sort((a,b) => a.days - b.days);
-
-      const ticker = document.getElementById('birthdayTickerText');
-      if (upcoming.length > 0) {
-        const item = upcoming[0];
-        ticker.innerHTML = `<span>🎂 <strong>${item.name}</strong> turns ${item.age} in <strong>${item.days === 0 ? 'Today!' : item.days + ' days'}</strong></span>`;
-      } else {
-        ticker.innerHTML = `<span>🌿 No birthdays in the next 60 days. Everything is up to date!</span>`;
+      let changed = true;
+      let iterations = 0;
+      while (changed && iterations < 15) {
+        changed = false;
+        iterations++;
+        familyData.forEach(p => {
+          if (p.parents && p.parents.length > 0) {
+            const maxParentLevel = Math.max(...p.parents.map(pid => levels[pid] !== undefined ? levels[pid] : 0));
+            const newLevel = maxParentLevel + 1;
+            if (levels[p.id] !== newLevel) {
+              levels[p.id] = newLevel;
+              changed = true;
+            }
+          }
+        });
       }
+
+      familyData.forEach(p => {
+        if (p.spouse && levels[p.spouse] !== undefined && levels[p.id] !== undefined) {
+          const maxLvl = Math.max(levels[p.id], levels[p.spouse]);
+          levels[p.id] = maxLvl;
+          levels[p.spouse] = maxLvl;
+        }
+      });
+
+      return levels;
+    }
+
+    function renderCanvasView() {
+      const container = document.getElementById('treeContainer');
+      const svg = document.getElementById('svgEdges');
+      if (!container || !svg) return;
+
+      container.innerHTML = '';
+      container.appendChild(svg);
+      svg.innerHTML = '';
+
+      const CARD_W = 200;
+      const CARD_H = 76;
+      const GAP_X = 50;
+      const GAP_Y = 140;
+
+      const levels = calculateGenerations();
+      const rows = {};
+      const positions = {};
+
+      familyData.forEach(p => {
+        const lvl = levels[p.id] || 0;
+        if (!rows[lvl]) rows[lvl] = [];
+        rows[lvl].push(p);
+      });
+
+      Object.keys(rows).forEach(lvl => {
+        const row = rows[lvl];
+        const visited = new Set();
+        const ordered = [];
+
+        row.forEach(p => {
+          if (visited.has(p.id)) return;
+          ordered.push(p);
+          visited.add(p.id);
+          if (p.spouse) {
+            const sp = row.find(x => x.id === p.spouse);
+            if (sp && !visited.has(sp.id)) {
+              ordered.push(sp);
+              visited.add(sp.id);
+            }
+          }
+        });
+        rows[lvl] = ordered;
+      });
+
+      const maxRowLen = Math.max(...Object.values(rows).map(r => r.length), 1);
+      const canvasCenter = (maxRowLen * (CARD_W + GAP_X)) / 2 + 100;
+
+      Object.keys(rows).forEach(lvl => {
+        const row = rows[lvl];
+        const rowWidth = row.length * (CARD_W + GAP_X) - GAP_X;
+        const startX = Math.max(50, canvasCenter - rowWidth / 2);
+        const y = parseInt(lvl) * GAP_Y + 60;
+
+        row.forEach((p, idx) => {
+          const x = startX + idx * (CARD_W + GAP_X);
+          positions[p.id] = { x, y, cx: x + CARD_W / 2, cy: y + CARD_H / 2, bottom: y + CARD_H, top: y };
+        });
+      });
+
+      let maxX = 1200, maxY = 800;
+      Object.values(positions).forEach(pos => {
+        if (pos.x + CARD_W + 200 > maxX) maxX = pos.x + CARD_W + 200;
+        if (pos.y + CARD_H + 200 > maxY) maxY = pos.y + CARD_H + 200;
+      });
+      container.style.width = `${maxX}px`;
+      container.style.height = `${maxY}px`;
+      svg.setAttribute('width', maxX);
+      svg.setAttribute('height', maxY);
+
+      let svgHtml = '';
+      const handledSpouses = new Set();
+
+      familyData.forEach(p => {
+        const pos = positions[p.id];
+        if (!pos) return;
+
+        // Spouse connections
+        if (p.spouse && positions[p.spouse] && !handledSpouses.has(p.id)) {
+          const spPos = positions[p.spouse];
+          const x1 = Math.min(pos.cx, spPos.cx) + CARD_W / 2;
+          const x2 = Math.max(pos.cx, spPos.cx) - CARD_W / 2;
+          svgHtml += `<line x1="${x1}" y1="${pos.cy}" x2="${x2}" y2="${pos.cy}" stroke="#6366f1" stroke-width="2" stroke-dasharray="4" />`;
+          handledSpouses.add(p.id);
+          handledSpouses.add(p.spouse);
+        }
+
+        // Child connections
+        if (p.parents && p.parents.length > 0) {
+          const validParents = p.parents.map(pid => positions[pid]).filter(Boolean);
+          if (validParents.length > 0) {
+            let parentMidX = 0, parentBottomY = 0;
+            validParents.forEach(pt => {
+              parentMidX += pt.cx;
+              parentBottomY = Math.max(parentBottomY, pt.bottom);
+            });
+            parentMidX /= validParents.length;
+
+            const midY = parentBottomY + (pos.top - parentBottomY) / 2;
+            svgHtml += `
+              <path d="M ${parentMidX} ${parentBottomY} 
+                       L ${parentMidX} ${midY} 
+                       L ${pos.cx} ${midY} 
+                       L ${pos.cx} ${pos.top}" 
+                    fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/>
+            `;
+          }
+        }
+      });
+      svg.innerHTML = svgHtml;
+
+      const ancestorSet = bloodlineMode ? getAncestors(currentFocusId) : null;
+      familyData.forEach(p => {
+        const pos = positions[p.id];
+        if (!pos) return;
+
+        const isDimmed = bloodlineMode && !ancestorSet.has(p.id);
+        const isHighlight = bloodlineMode && ancestorSet.has(p.id);
+
+        const card = document.createElement('div');
+        card.className = `absolute bg-white rounded-xl shadow-sm border border-slate-200 p-2.5 cursor-pointer transition-all hover:shadow-md ${isDimmed ? 'dimmed' : ''} ${isHighlight ? 'ring-2 ring-indigo-500' : ''}`;
+        card.style.width = `${CARD_W}px`;
+        card.style.height = `${CARD_H}px`;
+        card.style.left = `${pos.x}px`;
+        card.style.top = `${pos.y}px`;
+        card.style.zIndex = "2";
+        card.innerHTML = createMemberCardHtml(p);
+        
+        card.onclick = (e) => {
+          if (e.target.tagName !== 'BUTTON') {
+            setFocus(p.id);
+          }
+        };
+        container.appendChild(card);
+      });
     }
 
     // -----------------------------------------------------------------
@@ -363,19 +500,19 @@
     function createMemberCardHtml(person, isFocus = false) {
       const initials = person.name.split(' ').map(n => n[0]).slice(0, 2).join('');
       const avatarHtml = person.photo 
-        ? `<img src="${person.photo}" class="w-12 h-12 rounded-full object-cover border border-slate-200">`
-        : `<div class="w-12 h-12 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-sm border border-indigo-200">${initials}</div>`;
+        ? `<img src="${person.photo}" class="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0">`
+        : `<div class="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-xs border border-indigo-200 shrink-0">${initials}</div>`;
 
       return `
-        <div class="flex items-start gap-3">
+        <div class="flex items-start gap-2.5">
           ${avatarHtml}
           <div class="min-w-0 flex-1">
-            <h4 class="font-bold text-slate-800 text-sm truncate">${person.name}</h4>
-            <p class="text-[11px] text-indigo-600 font-medium">${person.relation || 'Relative'}</p>
-            <p class="text-[10px] text-slate-400">${getPersonDates(person)}</p>
+            <h4 class="font-bold text-slate-800 text-xs truncate leading-tight">${person.name}</h4>
+            <p class="text-[10px] text-indigo-600 font-medium">${person.relation || 'Relative'}</p>
+            <p class="text-[9px] text-slate-400">${getPersonDates(person)}</p>
             ${isFocus && person.bio ? `<p class="mt-2 text-xs text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100">${person.bio}</p>` : ''}
           </div>
-          ${isAdminUnlocked ? `<button onclick="openEditModal('${person.id}')" class="text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded">Edit</button>` : ''}
+          ${isAdminUnlocked ? `<button onclick="openEditModal('${person.id}')" class="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded shrink-0">Edit</button>` : ''}
         </div>
       `;
     }
@@ -392,9 +529,7 @@
       const person = familyData.find(p => p.id === currentFocusId) || familyData[0];
       if (!person) return;
 
-      // Update deep link URL hash silently
       window.history.replaceState(null, null, `#person=${person.id}`);
-
       document.getElementById('focusCurrentCard').innerHTML = createMemberCardHtml(person, true);
 
       // Parents
@@ -444,29 +579,6 @@
       }
     }
 
-    function renderCanvasView() {
-      const container = document.getElementById('treeContainer');
-      container.innerHTML = '';
-      const ancestorSet = bloodlineMode ? getAncestors(currentFocusId) : null;
-
-      familyData.forEach((p, idx) => {
-        const div = document.createElement('div');
-        const isDimmed = bloodlineMode && !ancestorSet.has(p.id);
-        const isHighlight = bloodlineMode && ancestorSet.has(p.id);
-
-        div.className = `absolute bg-white rounded-xl shadow border border-slate-200 p-3 w-48 cursor-pointer transition-all ${isDimmed ? 'dimmed' : ''} ${isHighlight ? 'ring-2 ring-indigo-500' : ''}`;
-        div.style.left = `${(idx % 3) * 220 + 40}px`;
-        div.style.top = `${Math.floor(idx / 3) * 130 + 40}px`;
-        div.innerHTML = createMemberCardHtml(p);
-        div.onclick = (e) => {
-          if (e.target.tagName !== 'BUTTON') {
-            setFocus(p.id);
-          }
-        };
-        container.appendChild(div);
-      });
-    }
-
     function setFocus(id) {
       currentFocusId = id;
       renderFocusView();
@@ -478,6 +590,36 @@
       renderCanvasView();
       updateBirthdayTicker();
       populateDropdowns();
+    }
+
+    function updateBirthdayTicker() {
+      const today = new Date();
+      const currentYear = today.getFullYear();
+      const upcoming = [];
+
+      familyData.forEach(p => {
+        if (!p.birthday || p.deathDate) return;
+        const bdate = new Date(p.birthday);
+        let nextBday = new Date(currentYear, bdate.getMonth(), bdate.getDate());
+        if (nextBday < today) {
+          nextBday = new Date(currentYear + 1, bdate.getMonth(), bdate.getDate());
+        }
+        const diffDays = Math.ceil((nextBday - today) / (1000 * 60 * 60 * 24));
+        const turningAge = nextBday.getFullYear() - bdate.getFullYear();
+        if (diffDays <= 60) {
+          upcoming.push({ name: p.name, days: diffDays, age: turningAge });
+        }
+      });
+
+      upcoming.sort((a,b) => a.days - b.days);
+
+      const ticker = document.getElementById('birthdayTickerText');
+      if (upcoming.length > 0) {
+        const item = upcoming[0];
+        ticker.innerHTML = `<span>🎂 <strong>${item.name}</strong> turns ${item.age} in <strong>${item.days === 0 ? 'Today!' : item.days + ' days'}</strong></span>`;
+      } else {
+        ticker.innerHTML = `<span>🌿 No birthdays in the next 60 days. Everything is up to date!</span>`;
+      }
     }
 
     // -----------------------------------------------------------------
@@ -495,7 +637,7 @@
           searchResults.innerHTML = `<div class="p-2 text-xs text-slate-400 text-center">No match found</div>`;
         } else {
           searchResults.innerHTML = matches.map(m => `
-            <div class="px-3 py-2 hover:bg-slate-100 cursor-pointer flex items-center gap-2 border-b border-slate-50 last:border-0" onclick="setFocus('${m.id}'); document.getElementById('searchResults').classList.add('hidden'); searchInput.value='';">
+            <div class="px-3 py-2 hover:bg-slate-100 cursor-pointer flex items-center gap-2 border-b border-slate-50 last:border-0" onclick="setFocus('${m.id}'); document.getElementById('searchResults').classList.add('hidden'); document.getElementById('searchInput').value='';">
               <span class="text-xs font-bold text-slate-700">${m.name}</span>
               <span class="text-[10px] text-indigo-600">${m.relation || ''}</span>
             </div>
@@ -552,7 +694,7 @@
         }
       };
 
-      // Direct Photo file conversion to lightweight Base64
+      // Direct Photo conversion to lightweight Base64
       document.getElementById('inpPhotoFile').addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -560,7 +702,6 @@
         reader.onload = (event) => {
           const img = new Image();
           img.onload = () => {
-            // Compress image using canvas
             const cvs = document.createElement('canvas');
             const maxDim = 200;
             let w = img.width, h = img.height;
@@ -627,7 +768,6 @@
       document.getElementById('btnViewCanvas').onclick = () => switchView('canvas');
     }
 
-    // Kinship BFS algorithm
     function computeKinship() {
       const aId = document.getElementById('kinPersonA').value;
       const bId = document.getElementById('kinPersonB').value;
@@ -638,18 +778,15 @@
       const b = familyData.find(p => p.id === bId);
       if (!a || !b) return;
 
-      // Direct parent/child
       if ((b.parents || []).includes(a.id)) { res.innerText = `${a.name} is the Parent of ${b.name}`; return; }
       if ((a.parents || []).includes(b.id)) { res.innerText = `${a.name} is the Child of ${b.name}`; return; }
       if (a.spouse === b.id) { res.innerText = `${a.name} and ${b.name} are Spouses`; return; }
 
-      // Siblings check
       const aParents = a.parents || [];
       const bParents = b.parents || [];
       const sharedParents = aParents.filter(p => bParents.includes(p));
       if (sharedParents.length > 0) { res.innerText = `${a.name} and ${b.name} are Siblings`; return; }
 
-      // Grandparent check
       for (let pId of bParents) {
         const p = familyData.find(x => x.id === pId);
         if (p && (p.parents || []).includes(a.id)) { res.innerText = `${a.name} is the Grandparent of ${b.name}`; return; }
@@ -715,6 +852,7 @@
         document.getElementById('canvasView').classList.remove('hidden');
         document.getElementById('btnViewCanvas').className = "px-2 py-1 rounded bg-white shadow-sm text-indigo-700 font-semibold";
         document.getElementById('btnViewFocus').className = "px-2 py-1 rounded text-slate-600";
+        renderCanvasView();
       }
     }
 
