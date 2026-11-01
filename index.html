@@ -52,12 +52,18 @@
         <button id="btnViewCanvas" class="px-2 py-1 rounded text-slate-600">Canvas</button>
       </div>
 
-      <button id="btnAdminToggle" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg border border-slate-200">
-        <span id="adminStatusText">🔒 Admin</span>
+      <!-- Admin Actions (Hidden until unlocked) -->
+      <button id="btnAdminCsv" class="hidden px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-lg border border-emerald-200 flex items-center gap-1">
+        <span>📥</span><span class="hidden sm:inline">CSV Import</span>
       </button>
 
       <button id="btnAddPerson" class="hidden bg-indigo-600 text-white px-2.5 py-1 rounded-lg text-xs font-semibold shadow hover:bg-indigo-700">
         + Add
+      </button>
+
+      <!-- Admin Toggle -->
+      <button id="btnAdminToggle" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg border border-slate-200">
+        <span id="adminStatusText">🔒 Admin</span>
       </button>
     </div>
   </header>
@@ -153,6 +159,46 @@
     </div>
   </div>
 
+  <!-- Modal: Admin CSV Batch Importer -->
+  <div id="csvModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-md rounded-2xl p-5 shadow-2xl space-y-4">
+      <div class="flex justify-between items-center">
+        <h3 class="text-sm font-bold text-slate-800">Batch Import Family Members (CSV)</h3>
+        <button id="btnCloseCsv" class="text-slate-400 hover:text-slate-600 font-bold text-lg">&times;</button>
+      </div>
+      
+      <p class="text-xs text-slate-500 leading-relaxed">
+        Upload a spreadsheet (.csv) containing your relatives. Ensure your columns match:
+        <code class="text-[11px] bg-slate-100 px-1 py-0.5 rounded text-indigo-600 font-mono block mt-1">id, name, birthday, deathDate, relation, bio, photo, parent1, parent2, spouse</code>
+      </p>
+
+      <div class="flex gap-2">
+        <button id="btnDownloadTemplate" class="flex-1 py-2 px-3 border border-slate-200 hover:bg-slate-50 rounded-lg text-xs font-semibold text-slate-700 text-center">
+          📄 Download Blank Template
+        </button>
+      </div>
+
+      <div class="border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-xl p-4 text-center">
+        <input type="file" id="csvFileInput" accept=".csv" class="hidden">
+        <button onclick="document.getElementById('csvFileInput').click()" class="bg-indigo-50 text-indigo-700 px-4 py-2 rounded-lg text-xs font-semibold hover:bg-indigo-100">
+          📁 Choose CSV File
+        </button>
+        <p id="csvFileName" class="text-xs text-slate-400 mt-2 truncate">No file chosen</p>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <input type="checkbox" id="chkReplaceAll" class="rounded text-indigo-600">
+        <label for="chkReplaceAll" class="text-xs text-slate-600 font-medium">Replace current tree completely (unchecked will append/update)</label>
+      </div>
+
+      <div class="flex gap-2 pt-2">
+        <button id="btnExecuteCsvImport" disabled class="flex-1 bg-indigo-600 disabled:bg-slate-300 text-white py-2 rounded-lg text-xs font-semibold shadow hover:bg-indigo-700">
+          Import & Sync to Cloud
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal: Add / Edit Family Member (Admin Only) -->
   <div id="memberModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-end sm:items-center justify-center">
     <div class="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-5 shadow-2xl max-h-[90vh] overflow-y-auto">
@@ -230,9 +276,9 @@
     // 1. CONFIGURATION & STATE
     // -----------------------------------------------------------------
     const firebaseConfig = {
-      apiKey: "",
-      databaseURL: "",
-      projectId: ""
+      apiKey: "AIzaSyCMoi0ecGeFWYJy6qfEGGiGeuW2TFRZVrs",
+      databaseURL: "https://family-tree-v1-81225-default-rtdb.firebaseio.com",
+      projectId: "family-tree-v1-81225"
     };
 
     const ADMIN_PASSCODE = "1234";
@@ -250,6 +296,7 @@
     let currentFocusId = '3';
     let firebaseDb = null;
     let bloodlineMode = false;
+    let parsedCsvResult = null;
 
     // -----------------------------------------------------------------
     // 2. INITIALIZATION
@@ -304,8 +351,7 @@
       setupPanZoom();
       setupEvents();
 
-      // Auto-detect browser screen size on initial launch:
-      // Desktop / Tablet (>= 768px) -> Canvas View; Mobile (< 768px) -> Mobile Focus View
+      // Screen responsive view check on start
       if (window.innerWidth >= 768) {
         switchView('canvas');
       } else {
@@ -487,7 +533,6 @@
         card.style.zIndex = "2";
         card.innerHTML = createMemberCardHtml(p);
         
-        // Clicking tile opens Person Details Popup
         card.onclick = (e) => {
           if (e.target.tagName !== 'BUTTON') {
             openPersonDetailsModal(p.id);
@@ -681,7 +726,47 @@
     };
 
     // -----------------------------------------------------------------
-    // 6. EVENTS, SEARCH & KINSHIP
+    // 6. CSV BATCH IMPORT ENGINE (ADMIN CONSOLE)
+    // -----------------------------------------------------------------
+    function parseCsvToObjects(csvText) {
+      const lines = csvText.trim().split(/\r\n|\n/).filter(line => line.trim().length > 0);
+      if (lines.length < 2) return [];
+
+      const headers = lines[0].split(',').map(h => h.trim().replace(/^["']|["']$/g, ''));
+      const results = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        // Robust CSV splitting accounting for potential commas inside quotes
+        const row = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || lines[i].split(',');
+        const obj = {};
+        headers.forEach((header, idx) => {
+          let val = row[idx] ? row[idx].trim().replace(/^["']|["']$/g, '') : '';
+          obj[header] = val;
+        });
+
+        if (obj.id && obj.name) {
+          const parents = [];
+          if (obj.parent1) parents.push(String(obj.parent1));
+          if (obj.parent2 && obj.parent2 !== obj.parent1) parents.push(String(obj.parent2));
+
+          results.push({
+            id: String(obj.id),
+            name: obj.name,
+            birthday: obj.birthday || null,
+            deathDate: obj.deathDate || null,
+            relation: obj.relation || '',
+            bio: obj.bio || '',
+            photo: obj.photo || '',
+            parents: parents,
+            spouse: obj.spouse ? String(obj.spouse) : null
+          });
+        }
+      }
+      return results;
+    }
+
+    // -----------------------------------------------------------------
+    // 7. EVENTS & UI CONTROLLERS
     // -----------------------------------------------------------------
     function setupEvents() {
       // Close details modal
@@ -740,11 +825,12 @@
       // Admin Lock / Unlock
       document.getElementById('btnAdminToggle').onclick = () => {
         if (!isAdminUnlocked) {
-          const pass = prompt("Enter Admin Passcode to enable editing:");
+          const pass = prompt("Enter Admin Passcode to enable editing & CSV import:");
           if (pass === ADMIN_PASSCODE) {
             isAdminUnlocked = true;
             document.getElementById('adminStatusText').innerText = "🔓 Admin";
             document.getElementById('btnAddPerson').classList.remove('hidden');
+            document.getElementById('btnAdminCsv').classList.remove('hidden');
             renderAll();
           } else if (pass) {
             alert("Incorrect passcode");
@@ -753,8 +839,80 @@
           isAdminUnlocked = false;
           document.getElementById('adminStatusText').innerText = "🔒 Admin";
           document.getElementById('btnAddPerson').classList.add('hidden');
+          document.getElementById('btnAdminCsv').classList.add('hidden');
           renderAll();
         }
+      };
+
+      // CSV Modal Controls
+      document.getElementById('btnAdminCsv').onclick = () => {
+        document.getElementById('csvModal').classList.remove('hidden');
+      };
+      document.getElementById('btnCloseCsv').onclick = () => {
+        document.getElementById('csvModal').classList.add('hidden');
+      };
+
+      // Download Blank CSV Template
+      document.getElementById('btnDownloadTemplate').onclick = () => {
+        const csvHeader = "id,name,birthday,deathDate,relation,bio,photo,parent1,parent2,spouse\n";
+        const sampleRow1 = '1,Grandpa Robert,1948-06-12,2019-11-04,Grandfather,"Civil engineer",, , ,2\n';
+        const sampleRow2 = '2,Grandma Margaret,1952-03-24,,Grandmother,"Teacher",, , ,1\n';
+        const sampleRow3 = '3,David Vance,1974-11-15,,Father,"Software Engineer",,1,2,4\n';
+        const sampleRow4 = '4,Sarah Vance,1977-08-09,,Mother,"Doctor",, , ,3\n';
+        const sampleRow5 = '5,Lucas Vance,2002-12-05,,Son,"College student",,3,4,\n';
+        
+        const blob = new Blob([csvHeader + sampleRow1 + sampleRow2 + sampleRow3 + sampleRow4 + sampleRow5], { type: 'text/csv;charset=utf-8;' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'family_tree_template.csv';
+        a.click();
+      };
+
+      // Handle CSV File Selection
+      document.getElementById('csvFileInput').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        document.getElementById('csvFileName').innerText = file.name;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          try {
+            parsedCsvResult = parseCsvToObjects(event.target.result);
+            if (parsedCsvResult.length > 0) {
+              document.getElementById('btnExecuteCsvImport').removeAttribute('disabled');
+              document.getElementById('btnExecuteCsvImport').innerText = `Import ${parsedCsvResult.length} People & Sync`;
+            } else {
+              alert("No valid rows found in the CSV. Please verify column headers.");
+            }
+          } catch (err) {
+            alert("Error reading CSV: " + err.message);
+          }
+        };
+        reader.readAsText(file);
+      });
+
+      // Execute CSV Import
+      document.getElementById('btnExecuteCsvImport').onclick = () => {
+        if (!parsedCsvResult || parsedCsvResult.length === 0) return;
+
+        const replaceAll = document.getElementById('chkReplaceAll').checked;
+        if (replaceAll) {
+          familyData = parsedCsvResult;
+        } else {
+          // Merge or update existing
+          parsedCsvResult.forEach(item => {
+            const idx = familyData.findIndex(x => x.id === item.id);
+            if (idx !== -1) {
+              familyData[idx] = item;
+            } else {
+              familyData.push(item);
+            }
+          });
+        }
+
+        syncData();
+        document.getElementById('csvModal').classList.add('hidden');
+        alert(`Successfully imported and synced ${parsedCsvResult.length} family members!`);
       };
 
       // Photo Upload
@@ -920,7 +1078,7 @@
     }
 
     // -----------------------------------------------------------------
-    // 7. PAN/ZOOM & DRAG GESTURES (TOUCH & MOUSE SUPPORT)
+    // 8. PAN/ZOOM & DRAG GESTURES (TOUCH & MOUSE SUPPORT)
     // -----------------------------------------------------------------
     let panX = 0, panY = 0, scale = 1;
     function setupPanZoom() {
@@ -937,7 +1095,7 @@
 
       // Mouse drag handlers
       viewport.addEventListener('mousedown', (e) => {
-        if (e.target.closest('#treeContainer > div')) return; // Allow card clicks
+        if (e.target.closest('#treeContainer > div')) return;
         isDragging = true;
         startX = e.clientX - panX;
         startY = e.clientY - panY;
