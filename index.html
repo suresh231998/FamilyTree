@@ -28,7 +28,7 @@
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans antialiased overflow-hidden flex flex-col h-screen">
 
-  <!-- Mobile Top Bar -->
+  <!-- Top Bar -->
   <header class="bg-white border-b border-slate-200 px-3 py-2.5 flex items-center justify-between shrink-0 z-30 gap-2">
     <div class="flex items-center gap-2 min-w-0">
       <div class="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow shrink-0">🌳</div>
@@ -48,7 +48,7 @@
       </button>
 
       <div class="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs font-semibold">
-        <button id="btnViewFocus" class="px-2 py-1 rounded bg-white shadow-sm text-indigo-700">Mobile</button>
+        <button id="btnViewFocus" class="px-2 py-1 rounded text-slate-600">Mobile</button>
         <button id="btnViewCanvas" class="px-2 py-1 rounded text-slate-600">Canvas</button>
       </div>
 
@@ -124,6 +124,14 @@
     </div>
   </main>
 
+  <!-- Modal: Person Details (Read-only for all visitors) -->
+  <div id="personDetailsModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl relative space-y-4">
+      <button id="btnCloseDetails" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 font-bold text-lg">&times;</button>
+      <div id="personDetailsContent"></div>
+    </div>
+  </div>
+
   <!-- Modal: Relationship / Kinship Calculator -->
   <div id="kinshipModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl space-y-4">
@@ -145,7 +153,7 @@
     </div>
   </div>
 
-  <!-- Modal: Add / Edit Family Member -->
+  <!-- Modal: Add / Edit Family Member (Admin Only) -->
   <div id="memberModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-end sm:items-center justify-center">
     <div class="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-5 shadow-2xl max-h-[90vh] overflow-y-auto">
       <div class="flex justify-between items-center mb-4">
@@ -244,10 +252,10 @@
     let bloodlineMode = false;
 
     // -----------------------------------------------------------------
-    // 2. INITIALIZATION & SYNC
+    // 2. INITIALIZATION
     // -----------------------------------------------------------------
     function initApp() {
-      // PWA Manifest
+      // Setup PWA Manifest
       const manifest = {
         name: "Our Family Tree",
         short_name: "FamilyTree",
@@ -294,8 +302,16 @@
       }
 
       setupPanZoom();
-      renderAll();
       setupEvents();
+
+      // Auto-detect browser screen size on initial launch:
+      // Desktop / Tablet (>= 768px) -> Canvas View; Mobile (< 768px) -> Mobile Focus View
+      if (window.innerWidth >= 768) {
+        switchView('canvas');
+      } else {
+        switchView('focus');
+      }
+      renderAll();
     }
 
     function syncData() {
@@ -308,15 +324,12 @@
     }
 
     // -----------------------------------------------------------------
-    // 3. GENERATION ENGINE & TREE LAYOUT
+    // 3. TREE GENERATION & CANVAS RENDERING
     // -----------------------------------------------------------------
     function calculateGenerations() {
       const levels = {};
-      
       familyData.forEach(p => {
-        if (!p.parents || p.parents.length === 0) {
-          levels[p.id] = 0;
-        }
+        if (!p.parents || p.parents.length === 0) levels[p.id] = 0;
       });
 
       let changed = true;
@@ -423,7 +436,7 @@
         const pos = positions[p.id];
         if (!pos) return;
 
-        // Spouse connections
+        // Spouse lines
         if (p.spouse && positions[p.spouse] && !handledSpouses.has(p.id)) {
           const spPos = positions[p.spouse];
           const x1 = Math.min(pos.cx, spPos.cx) + CARD_W / 2;
@@ -433,7 +446,7 @@
           handledSpouses.add(p.spouse);
         }
 
-        // Child connections
+        // Child lines
         if (p.parents && p.parents.length > 0) {
           const validParents = p.parents.map(pid => positions[pid]).filter(Boolean);
           if (validParents.length > 0) {
@@ -466,7 +479,7 @@
         const isHighlight = bloodlineMode && ancestorSet.has(p.id);
 
         const card = document.createElement('div');
-        card.className = `absolute bg-white rounded-xl shadow-sm border border-slate-200 p-2.5 cursor-pointer transition-all hover:shadow-md ${isDimmed ? 'dimmed' : ''} ${isHighlight ? 'ring-2 ring-indigo-500' : ''}`;
+        card.className = `absolute bg-white rounded-xl shadow-sm border border-slate-200 p-2.5 cursor-pointer transition-all hover:shadow-md hover:border-indigo-300 ${isDimmed ? 'dimmed' : ''} ${isHighlight ? 'ring-2 ring-indigo-500' : ''}`;
         card.style.width = `${CARD_W}px`;
         card.style.height = `${CARD_H}px`;
         card.style.left = `${pos.x}px`;
@@ -474,9 +487,10 @@
         card.style.zIndex = "2";
         card.innerHTML = createMemberCardHtml(p);
         
+        // Clicking tile opens Person Details Popup
         card.onclick = (e) => {
           if (e.target.tagName !== 'BUTTON') {
-            setFocus(p.id);
+            openPersonDetailsModal(p.id);
           }
         };
         container.appendChild(card);
@@ -512,7 +526,7 @@
             <p class="text-[9px] text-slate-400">${getPersonDates(person)}</p>
             ${isFocus && person.bio ? `<p class="mt-2 text-xs text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100">${person.bio}</p>` : ''}
           </div>
-          ${isAdminUnlocked ? `<button onclick="openEditModal('${person.id}')" class="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded shrink-0">Edit</button>` : ''}
+          ${isAdminUnlocked ? `<button onclick="event.stopPropagation(); openEditModal('${person.id}')" class="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded shrink-0">Edit</button>` : ''}
         </div>
       `;
     }
@@ -623,9 +637,58 @@
     }
 
     // -----------------------------------------------------------------
-    // 5. SEARCH & KINSHIP CALCULATOR
+    // 5. PERSON DETAILS POPUP MODAL
+    // -----------------------------------------------------------------
+    window.openPersonDetailsModal = function(id) {
+      const p = familyData.find(item => item.id === id);
+      if (!p) return;
+
+      const initials = p.name.split(' ').map(n => n[0]).slice(0, 2).join('');
+      const avatarHtml = p.photo 
+        ? `<img src="${p.photo}" class="w-16 h-16 rounded-full object-cover border-2 border-indigo-200 mx-auto">`
+        : `<div class="w-16 h-16 rounded-full bg-indigo-100 text-indigo-700 font-bold text-lg flex items-center justify-center border-2 border-indigo-200 mx-auto">${initials}</div>`;
+
+      const parents = familyData.filter(x => (p.parents || []).includes(x.id));
+      const spouse = familyData.find(x => x.id === p.spouse);
+      const children = familyData.filter(x => (x.parents || []).includes(p.id));
+
+      const content = `
+        <div class="text-center">
+          ${avatarHtml}
+          <h3 class="text-base font-bold text-slate-800 mt-2">${p.name}</h3>
+          <p class="text-xs text-indigo-600 font-semibold">${p.relation || 'Family Relative'}</p>
+          <p class="text-xs text-slate-400 mt-0.5">${getPersonDates(p)}</p>
+        </div>
+
+        ${p.bio ? `<div class="bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs text-slate-600 leading-relaxed">${p.bio}</div>` : ''}
+
+        <div class="text-xs space-y-1.5 pt-1 border-t border-slate-100">
+          <div><strong class="text-slate-500">Parents:</strong> ${parents.length > 0 ? parents.map(pt => `<span class="text-indigo-600 cursor-pointer font-medium hover:underline" onclick="openPersonDetailsModal('${pt.id}')">${pt.name}</span>`).join(', ') : '<span class="text-slate-400 italic">None recorded</span>'}</div>
+          <div><strong class="text-slate-500">Spouse:</strong> ${spouse ? `<span class="text-indigo-600 cursor-pointer font-medium hover:underline" onclick="openPersonDetailsModal('${spouse.id}')">${spouse.name}</span>` : '<span class="text-slate-400 italic">None</span>'}</div>
+          <div><strong class="text-slate-500">Children:</strong> ${children.length > 0 ? children.map(c => `<span class="text-indigo-600 cursor-pointer font-medium hover:underline" onclick="openPersonDetailsModal('${c.id}')">${c.name}</span>`).join(', ') : '<span class="text-slate-400 italic">None recorded</span>'}</div>
+        </div>
+
+        <div class="flex gap-2 pt-2">
+          <button onclick="setFocus('${p.id}'); switchView('focus'); document.getElementById('personDetailsModal').classList.add('hidden');" class="flex-1 bg-indigo-50 text-indigo-700 py-2 rounded-lg text-xs font-semibold hover:bg-indigo-100 transition-colors">
+            Focus on Mobile View
+          </button>
+          ${isAdminUnlocked ? `<button onclick="document.getElementById('personDetailsModal').classList.add('hidden'); openEditModal('${p.id}');" class="px-3 bg-slate-100 text-slate-700 py-2 rounded-lg text-xs font-semibold hover:bg-slate-200">Edit</button>` : ''}
+        </div>
+      `;
+
+      document.getElementById('personDetailsContent').innerHTML = content;
+      document.getElementById('personDetailsModal').classList.remove('hidden');
+    };
+
+    // -----------------------------------------------------------------
+    // 6. EVENTS, SEARCH & KINSHIP
     // -----------------------------------------------------------------
     function setupEvents() {
+      // Close details modal
+      document.getElementById('btnCloseDetails').onclick = () => {
+        document.getElementById('personDetailsModal').classList.add('hidden');
+      };
+
       // Search
       const searchInput = document.getElementById('searchInput');
       const searchResults = document.getElementById('searchResults');
@@ -637,7 +700,7 @@
           searchResults.innerHTML = `<div class="p-2 text-xs text-slate-400 text-center">No match found</div>`;
         } else {
           searchResults.innerHTML = matches.map(m => `
-            <div class="px-3 py-2 hover:bg-slate-100 cursor-pointer flex items-center gap-2 border-b border-slate-50 last:border-0" onclick="setFocus('${m.id}'); document.getElementById('searchResults').classList.add('hidden'); document.getElementById('searchInput').value='';">
+            <div class="px-3 py-2 hover:bg-slate-100 cursor-pointer flex items-center gap-2 border-b border-slate-50 last:border-0" onclick="setFocus('${m.id}'); openPersonDetailsModal('${m.id}'); document.getElementById('searchResults').classList.add('hidden'); document.getElementById('searchInput').value='';">
               <span class="text-xs font-bold text-slate-700">${m.name}</span>
               <span class="text-[10px] text-indigo-600">${m.relation || ''}</span>
             </div>
@@ -694,7 +757,7 @@
         }
       };
 
-      // Direct Photo conversion to lightweight Base64
+      // Photo Upload
       document.getElementById('inpPhotoFile').addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -857,7 +920,7 @@
     }
 
     // -----------------------------------------------------------------
-    // 6. TOUCH PINCH-ZOOM WITH CENTER-FOCUSED ANCHORING
+    // 7. PAN/ZOOM & DRAG GESTURES (TOUCH & MOUSE SUPPORT)
     // -----------------------------------------------------------------
     let panX = 0, panY = 0, scale = 1;
     function setupPanZoom() {
@@ -868,9 +931,45 @@
         container.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
       }
 
-      let isDragging = false, startX = 0, startY = 0;
+      let isDragging = false;
+      let startX = 0, startY = 0;
       let initialDist = 0, initialScale = 1, anchorWorldX = 0, anchorWorldY = 0;
 
+      // Mouse drag handlers
+      viewport.addEventListener('mousedown', (e) => {
+        if (e.target.closest('#treeContainer > div')) return; // Allow card clicks
+        isDragging = true;
+        startX = e.clientX - panX;
+        startY = e.clientY - panY;
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        panX = e.clientX - startX;
+        panY = e.clientY - startY;
+        updateTransform();
+      });
+
+      window.addEventListener('mouseup', () => { isDragging = false; });
+
+      // Mouse wheel zoom
+      viewport.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const rect = viewport.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        const worldX = (mouseX - panX) / scale;
+        const worldY = (mouseY - panY) / scale;
+
+        const zoomFactor = e.deltaY < 0 ? 1.15 : 0.85;
+        const nextScale = Math.min(Math.max(scale * zoomFactor, 0.3), 3);
+        panX = mouseX - worldX * nextScale;
+        panY = mouseY - worldY * nextScale;
+        scale = nextScale;
+        updateTransform();
+      }, { passive: false });
+
+      // Touch handlers (Single finger pan + Two-finger pinch)
       viewport.addEventListener('touchstart', (e) => {
         if (e.touches.length === 1) {
           isDragging = true;
