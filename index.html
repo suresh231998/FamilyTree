@@ -4,84 +4,118 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Our Family Tree</title>
+  
+  <!-- PWA Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Family Tree">
+  <meta name="theme-color" content="#4f46e5">
+
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Firebase SDK for shared cloud database -->
+  <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+  <!-- html2canvas for poster export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
   <style>
     body { touch-action: manipulation; }
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     .canvas-viewport { touch-action: none; user-select: none; }
+    .dimmed { opacity: 0.22 !important; filter: grayscale(80%); transition: all 0.3s ease; }
+    .bloodline-highlight { ring: 4px; ring-color: #6366f1; transform: scale(1.04); z-index: 30; }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans antialiased overflow-hidden flex flex-col h-screen">
 
   <!-- Mobile Top Bar -->
-  <header class="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between shrink-0 z-30">
-    <div class="flex items-center gap-2">
-      <div class="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow">🌳</div>
-      <h1 class="font-bold text-slate-800 text-base md:text-lg">Family Tree</h1>
+  <header class="bg-white border-b border-slate-200 px-3 py-2.5 flex items-center justify-between shrink-0 z-30 gap-2">
+    <div class="flex items-center gap-2 min-w-0">
+      <div class="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow shrink-0">🌳</div>
+      <h1 class="font-bold text-slate-800 text-sm sm:text-base truncate">Family Tree</h1>
+    </div>
+
+    <!-- Search Bar -->
+    <div class="relative flex-1 max-w-xs">
+      <input type="text" id="searchInput" placeholder="Search relative..." class="w-full px-2.5 py-1 text-xs border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50">
+      <div id="searchResults" class="absolute left-0 right-0 top-8 bg-white border border-slate-200 shadow-xl rounded-lg max-h-48 overflow-y-auto hidden z-50"></div>
     </div>
     
-    <!-- View Switcher & Action Buttons -->
-    <div class="flex items-center gap-2">
-      <div class="flex bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs font-semibold">
-        <button id="btnViewFocus" class="px-2.5 py-1 rounded-md bg-white shadow-sm text-indigo-700">Mobile</button>
-        <button id="btnViewCanvas" class="px-2.5 py-1 rounded-md text-slate-600">Canvas</button>
+    <!-- Header Actions -->
+    <div class="flex items-center gap-1.5 shrink-0">
+      <button id="btnOpenKinship" title="Relationship Calculator" class="p-1.5 text-xs bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700 font-medium flex items-center gap-1">
+        <span>🔗</span><span class="hidden sm:inline">Kinship</span>
+      </button>
+
+      <div class="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs font-semibold">
+        <button id="btnViewFocus" class="px-2 py-1 rounded bg-white shadow-sm text-indigo-700">Mobile</button>
+        <button id="btnViewCanvas" class="px-2 py-1 rounded text-slate-600">Canvas</button>
       </div>
-      <button id="btnAddPerson" class="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold active:scale-95 transition-transform shadow flex items-center gap-1">
-        <span>+ Add</span>
+
+      <button id="btnAdminToggle" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg border border-slate-200">
+        <span id="adminStatusText">🔒 Admin</span>
+      </button>
+
+      <button id="btnAddPerson" class="hidden bg-indigo-600 text-white px-2.5 py-1 rounded-lg text-xs font-semibold shadow hover:bg-indigo-700">
+        + Add
       </button>
     </div>
   </header>
 
-  <!-- Cloud Status Bar -->
-  <div id="cloudBanner" class="bg-amber-50 border-b border-amber-200 px-3 py-1 text-xs text-amber-800 flex items-center justify-between">
-    <span id="cloudStatusText">⚡ Local Mode (Enter Firebase Config to sync across all devices)</span>
-    <button id="btnConfigFirebase" class="underline font-semibold ml-2">Setup Cloud</button>
+  <!-- Live Upcoming Birthdays Ticker -->
+  <div id="birthdayTicker" class="bg-indigo-50 border-b border-indigo-100 px-3 py-1.5 text-xs text-indigo-900 flex items-center justify-between shrink-0 overflow-x-auto whitespace-nowrap">
+    <div class="flex items-center gap-2" id="birthdayTickerText">
+      <span>🎂 Checking upcoming milestones...</span>
+    </div>
+    <button id="btnExportPoster" class="text-[11px] bg-white border border-indigo-200 rounded px-2 py-0.5 ml-2 font-medium text-indigo-700 shadow-sm shrink-0">
+      📸 Save Poster
+    </button>
   </div>
 
-  <!-- Main Display Area -->
+  <!-- Main View Area -->
   <main class="relative flex-1 w-full h-full overflow-hidden">
     
-    <!-- VIEW 1: Mobile-First Focus Navigator (Ideal for phones) -->
-    <div id="focusView" class="w-full h-full overflow-y-auto p-4 flex flex-col items-center max-w-lg mx-auto pb-24">
-      <div class="w-full space-y-6">
+    <!-- VIEW 1: Mobile-First Focus Navigator -->
+    <div id="focusView" class="w-full h-full overflow-y-auto p-4 flex flex-col items-center max-w-lg mx-auto pb-28">
+      <div class="w-full space-y-5">
         
-        <!-- Parents Section -->
+        <!-- Parents -->
         <div>
-          <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 text-center">Parents</h2>
-          <div id="focusParents" class="flex justify-center gap-3 flex-wrap"></div>
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Parents</h2>
+            <button id="btnHighlightLineage" class="text-[11px] text-indigo-600 font-semibold underline">Trace Bloodline</button>
+          </div>
+          <div id="focusParents" class="flex justify-center gap-2.5 flex-wrap"></div>
         </div>
 
         <!-- Center Focus Person Card -->
         <div class="flex flex-col items-center">
-          <div class="w-1 h-4 bg-slate-300"></div>
-          <div id="focusCurrentCard" class="w-full bg-white rounded-2xl p-4 shadow-md border-2 border-indigo-500 relative"></div>
-          <div class="w-1 h-4 bg-slate-300"></div>
+          <div class="w-0.5 h-3 bg-slate-300"></div>
+          <div id="focusCurrentCard" class="w-full bg-white rounded-2xl p-4 shadow-md border-2 border-indigo-500 relative transition-all"></div>
+          <div class="w-0.5 h-3 bg-slate-300"></div>
         </div>
 
-        <!-- Spouse Section -->
+        <!-- Spouse -->
         <div id="focusSpouseContainer">
           <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 text-center">Spouse / Partner</h2>
-          <div id="focusSpouse" class="flex justify-center gap-3"></div>
+          <div id="focusSpouse" class="flex justify-center gap-2.5"></div>
         </div>
 
-        <!-- Children Section -->
+        <!-- Children -->
         <div>
           <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 text-center">Children</h2>
-          <div id="focusChildren" class="flex justify-center gap-3 flex-wrap"></div>
+          <div id="focusChildren" class="flex justify-center gap-2.5 flex-wrap"></div>
         </div>
       </div>
     </div>
 
-    <!-- VIEW 2: Pan & Zoom Graph Canvas (Desktop / Tablet / Landscape) -->
+    <!-- VIEW 2: Pan & Zoom Graph Canvas -->
     <div id="canvasView" class="hidden absolute inset-0 canvas-viewport bg-slate-50 cursor-grab active:cursor-grabbing">
       <svg id="svgEdges" class="absolute inset-0 w-full h-full pointer-events-none z-0"></svg>
       <div id="treeContainer" class="absolute origin-top-left z-10"></div>
       
-      <!-- Canvas Control Floaters -->
+      <!-- Floating HUD controls -->
       <div class="absolute bottom-6 right-4 flex flex-col gap-2 z-20">
         <button id="btnZoomIn" class="w-10 h-10 rounded-full bg-white shadow-md border border-slate-200 text-lg font-bold flex items-center justify-center active:bg-slate-100">+</button>
         <button id="btnZoomOut" class="w-10 h-10 rounded-full bg-white shadow-md border border-slate-200 text-lg font-bold flex items-center justify-center active:bg-slate-100">-</button>
@@ -90,7 +124,28 @@
     </div>
   </main>
 
-  <!-- Bottom Drawer / Modal (Add & Edit Person) -->
+  <!-- Modal: Relationship / Kinship Calculator -->
+  <div id="kinshipModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl space-y-4">
+      <div class="flex justify-between items-center">
+        <h3 class="text-sm font-bold text-slate-800">Kinship Calculator</h3>
+        <button id="btnCloseKinship" class="text-slate-400 hover:text-slate-600 font-bold text-lg">&times;</button>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">Person A</label>
+        <select id="kinPersonA" class="w-full px-3 py-2 border rounded-lg text-xs"></select>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">Person B</label>
+        <select id="kinPersonB" class="w-full px-3 py-2 border rounded-lg text-xs"></select>
+      </div>
+      <div id="kinshipResult" class="p-3 bg-indigo-50 border border-indigo-100 rounded-xl text-center text-xs text-indigo-900 font-semibold min-h-[44px] flex items-center justify-center">
+        Select two relatives to calculate relationship
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Add / Edit Family Member -->
   <div id="memberModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-end sm:items-center justify-center">
     <div class="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-5 shadow-2xl max-h-[90vh] overflow-y-auto">
       <div class="flex justify-between items-center mb-4">
@@ -98,107 +153,158 @@
         <button id="btnCloseModal" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
       </div>
       
-      <form id="memberForm" class="space-y-3 text-sm">
+      <form id="memberForm" class="space-y-3 text-xs">
         <input type="hidden" id="editPersonId">
         
         <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1">Full Name *</label>
+          <label class="block font-semibold text-slate-600 mb-1">Full Name *</label>
           <input type="text" id="inpName" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+        </div>
+
+        <!-- Birthday & Milestone Tracking -->
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">Exact Birthday</label>
+            <input type="date" id="inpBirthday" class="w-full px-2 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">Passed Date (optional)</label>
+            <input type="date" id="inpDeathDate" class="w-full px-2 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+          </div>
+        </div>
+
+        <!-- Direct Photo Upload with Camera / Files -->
+        <div>
+          <label class="block font-semibold text-slate-600 mb-1">Profile Photo</label>
+          <div class="flex gap-2 items-center">
+            <input type="file" id="inpPhotoFile" accept="image/*" class="text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+            <input type="hidden" id="inpPhotoData">
+          </div>
+          <div id="photoPreviewContainer" class="mt-2 hidden">
+            <img id="photoPreview" src="" class="w-12 h-12 rounded-full object-cover border border-slate-200">
+          </div>
+        </div>
+
+        <!-- Bio & Family Stories -->
+        <div>
+          <label class="block font-semibold text-slate-600 mb-1">Bio, Anecdotes & Memories</label>
+          <textarea id="inpBio" rows="2" placeholder="Life stories, career, milestones..." class="w-full px-3 py-1.5 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"></textarea>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-600 mb-1">Relation Title</label>
+          <input type="text" id="inpRelation" placeholder="e.g. Father, Sister" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
         </div>
 
         <div class="grid grid-cols-2 gap-2">
           <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">Birth Year</label>
-            <input type="number" id="inpBirthYear" placeholder="e.g. 1975" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+            <label class="block font-semibold text-slate-600 mb-1">Parent 1</label>
+            <select id="selParent1" class="w-full px-2 py-2 border rounded-lg outline-none"></select>
           </div>
           <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">Passed Year (optional)</label>
-            <input type="number" id="inpDeathYear" placeholder="Living if blank" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+            <label class="block font-semibold text-slate-600 mb-1">Parent 2</label>
+            <select id="selParent2" class="w-full px-2 py-2 border rounded-lg outline-none"></select>
           </div>
         </div>
 
         <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1">Photo URL</label>
-          <input type="url" id="inpPhoto" placeholder="https://example.com/photo.jpg" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
-        </div>
-
-        <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1">Relation / Title</label>
-          <input type="text" id="inpRelation" placeholder="e.g. Father, Daughter" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
-        </div>
-
-        <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1">Parent 1</label>
-          <select id="selParent1" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"></select>
-        </div>
-
-        <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1">Parent 2</label>
-          <select id="selParent2" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"></select>
-        </div>
-
-        <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1">Spouse / Partner</label>
-          <select id="selSpouse" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"></select>
+          <label class="block font-semibold text-slate-600 mb-1">Spouse / Partner</label>
+          <select id="selSpouse" class="w-full px-3 py-2 border rounded-lg outline-none"></select>
         </div>
 
         <div class="flex gap-2 pt-3">
           <button type="button" id="btnDeletePerson" class="hidden px-3 py-2 text-red-600 border border-red-200 rounded-lg hover:bg-red-50 font-semibold">Delete</button>
-          <button type="submit" class="flex-1 bg-indigo-600 text-white py-2 rounded-lg font-semibold shadow hover:bg-indigo-700">Save</button>
+          <button type="submit" class="flex-1 bg-indigo-600 text-white py-2 rounded-lg font-semibold shadow hover:bg-indigo-700">Save Member</button>
         </div>
       </form>
     </div>
   </div>
 
   <script>
-    // -------------------------------------------------------------
-    // 1. DATA STATE & INITIAL SEED
-    // -------------------------------------------------------------
-    const currentYear = new Date().getFullYear();
+    // -----------------------------------------------------------------
+    // 1. CONFIGURATION & STATE
+    // -----------------------------------------------------------------
+    // Insert your Firebase credentials here once when ready:
+    const firebaseConfig = {
+      apiKey: "",
+      databaseURL: "",
+      projectId: ""
+    };
+
+    const ADMIN_PASSCODE = "1234"; // Change your admin passcode here
+    let isAdminUnlocked = false;
+
     let familyData = [
-      { id: '1', name: 'Robert Vance', birth: 1948, death: 2019, photo: '', relation: 'Grandfather', parents: [], spouse: '2' },
-      { id: '2', name: 'Margaret Vance', birth: 1952, death: null, photo: '', relation: 'Grandmother', parents: [], spouse: '1' },
-      { id: '3', name: 'David Vance', birth: 1974, death: null, photo: '', relation: 'Father', parents: ['1', '2'], spouse: '4' },
-      { id: '4', name: 'Sarah Jenkins', birth: 1977, death: null, photo: '', relation: 'Mother', parents: [], spouse: '3' },
-      { id: '5', name: 'Lucas Vance', birth: 2002, death: null, photo: '', relation: 'Son', parents: ['3', '4'], spouse: null },
-      { id: '6', name: 'Chloe Vance', birth: 2006, death: null, photo: '', relation: 'Daughter', parents: ['3', '4'], spouse: null }
+      { id: '1', name: 'Robert Vance', birthday: '1948-06-12', deathDate: '2019-11-04', photo: '', relation: 'Grandfather', bio: 'Served in the civil engineering corps, loved woodworking and gardening.', parents: [], spouse: '2' },
+      { id: '2', name: 'Margaret Vance', birthday: '1952-03-24', deathDate: null, photo: '', relation: 'Grandmother', bio: 'Beloved school teacher for 32 years and matriarch of our Sunday dinners.', parents: [], spouse: '1' },
+      { id: '3', name: 'David Vance', birthday: '1974-11-15', deathDate: null, photo: '', relation: 'Father', bio: 'Software architect, photography enthusiast, marathon runner.', parents: ['1', '2'], spouse: '4' },
+      { id: '4', name: 'Sarah Jenkins', birthday: '1977-08-09', deathDate: null, photo: '', relation: 'Mother', bio: 'Pediatric doctor and classical pianist.', parents: [], spouse: '3' },
+      { id: '5', name: 'Lucas Vance', birthday: '2002-12-05', deathDate: null, photo: '', relation: 'Son', bio: 'Studying graphic design and environmental sciences.', parents: ['3', '4'], spouse: null },
+      { id: '6', name: 'Chloe Vance', birthday: '2006-04-18', deathDate: null, photo: '', relation: 'Daughter', bio: 'High school volleyball team captain.', parents: ['3', '4'], spouse: null }
     ];
 
-    let currentFocusId = '3'; // Default focus on David Vance
+    let currentFocusId = '3';
     let firebaseDb = null;
+    let bloodlineMode = false;
 
-    // -------------------------------------------------------------
-    // 2. CLOUD DATABASE (FIREBASE REALTIME DB) CONFIG
-    // -------------------------------------------------------------
-    function initFirebase(cfg) {
-      try {
-        if (!firebase.apps.length) {
-          firebase.initializeApp(cfg);
-        }
-        firebaseDb = firebase.database();
-        const treeRef = firebaseDb.ref('familyTree');
+    // -----------------------------------------------------------------
+    // 2. INITIALIZATION & SYNC
+    // -----------------------------------------------------------------
+    function initApp() {
+      // Setup PWA Manifest dynamically
+      const manifest = {
+        name: "Our Family Tree",
+        short_name: "FamilyTree",
+        start_url: "./",
+        display: "standalone",
+        background_color: "#f8fafc",
+        theme_color: "#4f46e5",
+        icons: [{ src: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png", sizes: "512x512", type: "image/png" }]
+      };
+      const stringManifest = JSON.stringify(manifest);
+      const blob = new Blob([stringManifest], {type: 'application/json'});
+      const manifestURL = URL.createObjectURL(blob);
+      const link = document.createElement('link');
+      link.rel = 'manifest';
+      link.href = manifestURL;
+      document.head.appendChild(link);
 
-        // Realtime listener: whenever ANY family member makes an edit, all devices update live!
-        treeRef.on('value', (snapshot) => {
-          const val = snapshot.val();
-          if (val && Array.isArray(val) && val.length > 0) {
-            familyData = val;
-            renderAll();
-          } else {
-            // Push initial data to cloud if empty
-            treeRef.set(familyData);
-          }
-        });
-
-        document.getElementById('cloudStatusText').innerText = "🟢 Connected to Cloud (Synced live for everyone)";
-        document.getElementById('cloudBanner').className = "bg-emerald-50 border-b border-emerald-200 px-3 py-1 text-xs text-emerald-800 flex items-center justify-between";
-      } catch (err) {
-        console.error(err);
-        alert("Failed to connect to Firebase. Check your configuration keys.");
+      // Deep Linking: Read URL hash (e.g. index.html#person=5)
+      const hash = window.location.hash;
+      if (hash && hash.includes('person=')) {
+        const id = hash.split('person=')[1];
+        if (familyData.some(p => p.id === id)) currentFocusId = id;
       }
+
+      // Check Local Cache
+      const saved = localStorage.getItem('localFamilyTree');
+      if (saved) {
+        try { familyData = JSON.parse(saved); } catch(e){}
+      }
+
+      // Firebase connect if keys are provided
+      if (firebaseConfig.apiKey && firebaseConfig.databaseURL) {
+        try {
+          firebase.initializeApp(firebaseConfig);
+          firebaseDb = firebase.database();
+          firebaseDb.ref('familyTree').on('value', snap => {
+            const val = snap.val();
+            if (val && Array.isArray(val) && val.length > 0) {
+              familyData = val;
+              renderAll();
+            } else {
+              firebaseDb.ref('familyTree').set(familyData);
+            }
+          });
+        } catch(e) { console.error(e); }
+      }
+
+      setupPanZoom();
+      renderAll();
+      setupEvents();
     }
 
-    function syncDataToCloud() {
+    function syncData() {
       if (firebaseDb) {
         firebaseDb.ref('familyTree').set(familyData);
       } else {
@@ -207,13 +313,51 @@
       renderAll();
     }
 
-    // -------------------------------------------------------------
-    // 3. RENDER HELPERS
-    // -------------------------------------------------------------
-    function getPersonAge(p) {
-      if (!p.birth) return '';
-      if (p.death) return `${p.birth}–${p.death} (${p.death - p.birth} yrs)`;
-      return `Age ${currentYear - p.birth}`;
+    // -----------------------------------------------------------------
+    // 3. BIRTHDAYS & MILESTONES CALCULATION
+    // -----------------------------------------------------------------
+    function updateBirthdayTicker() {
+      const today = new Date();
+      const currentYear = today.getFullYear();
+      const upcoming = [];
+
+      familyData.forEach(p => {
+        if (!p.birthday || p.deathDate) return;
+        const bdate = new Date(p.birthday);
+        let nextBday = new Date(currentYear, bdate.getMonth(), bdate.getDate());
+        if (nextBday < today) {
+          nextBday = new Date(currentYear + 1, bdate.getMonth(), bdate.getDate());
+        }
+        const diffDays = Math.ceil((nextBday - today) / (1000 * 60 * 60 * 24));
+        const turningAge = nextBday.getFullYear() - bdate.getFullYear();
+        if (diffDays <= 60) {
+          upcoming.push({ name: p.name, days: diffDays, age: turningAge });
+        }
+      });
+
+      upcoming.sort((a,b) => a.days - b.days);
+
+      const ticker = document.getElementById('birthdayTickerText');
+      if (upcoming.length > 0) {
+        const item = upcoming[0];
+        ticker.innerHTML = `<span>🎂 <strong>${item.name}</strong> turns ${item.age} in <strong>${item.days === 0 ? 'Today!' : item.days + ' days'}</strong></span>`;
+      } else {
+        ticker.innerHTML = `<span>🌿 No birthdays in the next 60 days. Everything is up to date!</span>`;
+      }
+    }
+
+    // -----------------------------------------------------------------
+    // 4. RENDERING VIEWS & CARDS
+    // -----------------------------------------------------------------
+    function getPersonDates(p) {
+      if (!p.birthday) return '';
+      const bYear = new Date(p.birthday).getFullYear();
+      if (p.deathDate) {
+        const dYear = new Date(p.deathDate).getFullYear();
+        return `${bYear}–${dYear} (Aged ${dYear - bYear})`;
+      }
+      const age = new Date().getFullYear() - bYear;
+      return `Age ${age} (b. ${bYear})`;
     }
 
     function createMemberCardHtml(person, isFocus = false) {
@@ -223,222 +367,416 @@
         : `<div class="w-12 h-12 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-sm border border-indigo-200">${initials}</div>`;
 
       return `
-        <div class="flex items-center gap-3">
+        <div class="flex items-start gap-3">
           ${avatarHtml}
           <div class="min-w-0 flex-1">
             <h4 class="font-bold text-slate-800 text-sm truncate">${person.name}</h4>
-            <p class="text-xs text-indigo-600 font-medium">${person.relation || 'Family Member'}</p>
-            <p class="text-[11px] text-slate-400">${getPersonAge(person)}</p>
+            <p class="text-[11px] text-indigo-600 font-medium">${person.relation || 'Relative'}</p>
+            <p class="text-[10px] text-slate-400">${getPersonDates(person)}</p>
+            ${isFocus && person.bio ? `<p class="mt-2 text-xs text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100">${person.bio}</p>` : ''}
           </div>
-          <button onclick="openEditModal('${person.id}')" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded">Edit</button>
+          ${isAdminUnlocked ? `<button onclick="openEditModal('${person.id}')" class="text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded">Edit</button>` : ''}
         </div>
       `;
     }
 
-    // Render Mobile Focus View
+    function getAncestors(id, set = new Set()) {
+      const person = familyData.find(p => p.id === id);
+      if (!person) return set;
+      set.add(person.id);
+      (person.parents || []).forEach(pid => getAncestors(pid, set));
+      return set;
+    }
+
     function renderFocusView() {
       const person = familyData.find(p => p.id === currentFocusId) || familyData[0];
       if (!person) return;
 
-      // Focus Person Card
+      // Update deep link URL hash silently
+      window.history.replaceState(null, null, `#person=${person.id}`);
+
       document.getElementById('focusCurrentCard').innerHTML = createMemberCardHtml(person, true);
 
       // Parents
-      const parentsContainer = document.getElementById('focusParents');
-      parentsContainer.innerHTML = '';
+      const pContainer = document.getElementById('focusParents');
+      pContainer.innerHTML = '';
       const parents = familyData.filter(p => (person.parents || []).includes(p.id));
       if (parents.length > 0) {
-        parents.forEach(parent => {
+        parents.forEach(p => {
           const div = document.createElement('div');
           div.className = "bg-white p-3 rounded-xl border border-slate-200 shadow-sm w-44 cursor-pointer active:scale-95 transition-transform";
-          div.innerHTML = createMemberCardHtml(parent);
-          div.onclick = (e) => { if (e.target.tagName !== 'BUTTON') { currentFocusId = parent.id; renderFocusView(); } };
-          parentsContainer.appendChild(div);
+          div.innerHTML = createMemberCardHtml(p);
+          div.onclick = (e) => { if (e.target.tagName !== 'BUTTON') setFocus(p.id); };
+          pContainer.appendChild(div);
         });
       } else {
-        parentsContainer.innerHTML = `<span class="text-xs text-slate-400 italic">No parents linked</span>`;
+        pContainer.innerHTML = `<span class="text-xs text-slate-400 italic">No parents recorded</span>`;
       }
 
       // Spouse
-      const spouseContainer = document.getElementById('focusSpouse');
-      spouseContainer.innerHTML = '';
+      const spContainer = document.getElementById('focusSpouse');
+      spContainer.innerHTML = '';
       const spouse = familyData.find(p => p.id === person.spouse);
       if (spouse) {
         const div = document.createElement('div');
         div.className = "bg-white p-3 rounded-xl border border-slate-200 shadow-sm w-48 cursor-pointer active:scale-95 transition-transform";
         div.innerHTML = createMemberCardHtml(spouse);
-        div.onclick = (e) => { if (e.target.tagName !== 'BUTTON') { currentFocusId = spouse.id; renderFocusView(); } };
-        spouseContainer.appendChild(div);
+        div.onclick = (e) => { if (e.target.tagName !== 'BUTTON') setFocus(spouse.id); };
+        spContainer.appendChild(div);
       } else {
-        spouseContainer.innerHTML = `<span class="text-xs text-slate-400 italic">No spouse linked</span>`;
+        spContainer.innerHTML = `<span class="text-xs text-slate-400 italic">No spouse linked</span>`;
       }
 
       // Children
-      const childrenContainer = document.getElementById('focusChildren');
-      childrenContainer.innerHTML = '';
+      const chContainer = document.getElementById('focusChildren');
+      chContainer.innerHTML = '';
       const children = familyData.filter(p => (p.parents || []).includes(person.id));
       if (children.length > 0) {
-        children.forEach(child => {
+        children.forEach(c => {
           const div = document.createElement('div');
           div.className = "bg-white p-3 rounded-xl border border-slate-200 shadow-sm w-44 cursor-pointer active:scale-95 transition-transform";
-          div.innerHTML = createMemberCardHtml(child);
-          div.onclick = (e) => { if (e.target.tagName !== 'BUTTON') { currentFocusId = child.id; renderFocusView(); } };
-          childrenContainer.appendChild(child);
+          div.innerHTML = createMemberCardHtml(c);
+          div.onclick = (e) => { if (e.target.tagName !== 'BUTTON') setFocus(c.id); };
+          chContainer.appendChild(div);
         });
       } else {
-        childrenContainer.innerHTML = `<span class="text-xs text-slate-400 italic">No children linked</span>`;
+        chContainer.innerHTML = `<span class="text-xs text-slate-400 italic">No children recorded</span>`;
       }
     }
 
-    // Render Canvas Layout View
     function renderCanvasView() {
       const container = document.getElementById('treeContainer');
       container.innerHTML = '';
+      const ancestorSet = bloodlineMode ? getAncestors(currentFocusId) : null;
 
-      // Simple grid positioning for Canvas
       familyData.forEach((p, idx) => {
-        const row = p.parents.length === 0 ? 0 : 1;
         const div = document.createElement('div');
-        div.className = "absolute bg-white rounded-xl shadow border border-slate-200 p-3 w-48 cursor-pointer";
+        const isDimmed = bloodlineMode && !ancestorSet.has(p.id);
+        const isHighlight = bloodlineMode && ancestorSet.has(p.id);
+
+        div.className = `absolute bg-white rounded-xl shadow border border-slate-200 p-3 w-48 cursor-pointer transition-all ${isDimmed ? 'dimmed' : ''} ${isHighlight ? 'ring-2 ring-indigo-500' : ''}`;
         div.style.left = `${(idx % 3) * 220 + 40}px`;
-        div.style.top = `${Math.floor(idx / 3) * 120 + 40}px`;
+        div.style.top = `${Math.floor(idx / 3) * 130 + 40}px`;
         div.innerHTML = createMemberCardHtml(p);
         div.onclick = (e) => {
           if (e.target.tagName !== 'BUTTON') {
-            currentFocusId = p.id;
-            switchView('focus');
+            setFocus(p.id);
           }
         };
         container.appendChild(div);
       });
     }
 
+    function setFocus(id) {
+      currentFocusId = id;
+      renderFocusView();
+      renderCanvasView();
+    }
+
     function renderAll() {
       renderFocusView();
       renderCanvasView();
+      updateBirthdayTicker();
       populateDropdowns();
     }
 
-    // -------------------------------------------------------------
-    // 4. MODAL & MEMBER CREATION
-    // -------------------------------------------------------------
+    // -----------------------------------------------------------------
+    // 5. SEARCH & KINSHIP CALCULATOR
+    // -----------------------------------------------------------------
+    function setupEvents() {
+      // Search
+      const searchInput = document.getElementById('searchInput');
+      const searchResults = document.getElementById('searchResults');
+      searchInput.addEventListener('input', () => {
+        const q = searchInput.value.toLowerCase().trim();
+        if (!q) { searchResults.classList.add('hidden'); return; }
+        const matches = familyData.filter(p => p.name.toLowerCase().includes(q));
+        if (matches.length === 0) {
+          searchResults.innerHTML = `<div class="p-2 text-xs text-slate-400 text-center">No match found</div>`;
+        } else {
+          searchResults.innerHTML = matches.map(m => `
+            <div class="px-3 py-2 hover:bg-slate-100 cursor-pointer flex items-center gap-2 border-b border-slate-50 last:border-0" onclick="setFocus('${m.id}'); document.getElementById('searchResults').classList.add('hidden'); searchInput.value='';">
+              <span class="text-xs font-bold text-slate-700">${m.name}</span>
+              <span class="text-[10px] text-indigo-600">${m.relation || ''}</span>
+            </div>
+          `).join('');
+        }
+        searchResults.classList.remove('hidden');
+      });
+
+      // Kinship Modal
+      document.getElementById('btnOpenKinship').onclick = () => {
+        document.getElementById('kinshipModal').classList.remove('hidden');
+        computeKinship();
+      };
+      document.getElementById('btnCloseKinship').onclick = () => document.getElementById('kinshipModal').classList.add('hidden');
+      document.getElementById('kinPersonA').onchange = computeKinship;
+      document.getElementById('kinPersonB').onchange = computeKinship;
+
+      // Lineage Bloodline Toggle
+      document.getElementById('btnHighlightLineage').onclick = () => {
+        bloodlineMode = !bloodlineMode;
+        document.getElementById('btnHighlightLineage').innerText = bloodlineMode ? "Clear Bloodline" : "Trace Bloodline";
+        renderCanvasView();
+        if (bloodlineMode) switchView('canvas');
+      };
+
+      // Poster Export
+      document.getElementById('btnExportPoster').onclick = () => {
+        const target = document.getElementById('focusView');
+        html2canvas(target).then(canvas => {
+          const a = document.createElement('a');
+          a.download = 'family-tree-poster.png';
+          a.href = canvas.toDataURL();
+          a.click();
+        });
+      };
+
+      // Admin Lock / Unlock
+      document.getElementById('btnAdminToggle').onclick = () => {
+        if (!isAdminUnlocked) {
+          const pass = prompt("Enter Admin Passcode to enable editing:");
+          if (pass === ADMIN_PASSCODE) {
+            isAdminUnlocked = true;
+            document.getElementById('adminStatusText').innerText = "🔓 Admin";
+            document.getElementById('btnAddPerson').classList.remove('hidden');
+            renderAll();
+          } else if (pass) {
+            alert("Incorrect passcode");
+          }
+        } else {
+          isAdminUnlocked = false;
+          document.getElementById('adminStatusText').innerText = "🔒 Admin";
+          document.getElementById('btnAddPerson').classList.add('hidden');
+          renderAll();
+        }
+      };
+
+      // Direct Photo file conversion to lightweight Base64
+      document.getElementById('inpPhotoFile').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const img = new Image();
+          img.onload = () => {
+            // Compress image using canvas
+            const cvs = document.createElement('canvas');
+            const maxDim = 200;
+            let w = img.width, h = img.height;
+            if (w > h) { if (w > maxDim) { h *= maxDim / w; w = maxDim; } }
+            else { if (h > maxDim) { w *= maxDim / h; h = maxDim; } }
+            cvs.width = w; cvs.height = h;
+            cvs.getContext('2d').drawImage(img, 0, 0, w, h);
+            const dataUrl = cvs.toDataURL('image/jpeg', 0.85);
+            document.getElementById('inpPhotoData').value = dataUrl;
+            document.getElementById('photoPreview').src = dataUrl;
+            document.getElementById('photoPreviewContainer').classList.remove('hidden');
+          };
+          img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+
+      // Form Save
+      document.getElementById('memberForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const id = document.getElementById('editPersonId').value;
+        const parents = [];
+        const p1 = document.getElementById('selParent1').value;
+        const p2 = document.getElementById('selParent2').value;
+        if (p1) parents.push(p1);
+        if (p2 && p2 !== p1) parents.push(p2);
+
+        const member = {
+          id: id || Date.now().toString(),
+          name: document.getElementById('inpName').value.trim(),
+          birthday: document.getElementById('inpBirthday').value || null,
+          deathDate: document.getElementById('inpDeathDate').value || null,
+          photo: document.getElementById('inpPhotoData').value || '',
+          bio: document.getElementById('inpBio').value.trim(),
+          relation: document.getElementById('inpRelation').value.trim(),
+          parents: parents,
+          spouse: document.getElementById('selSpouse').value || null
+        };
+
+        if (id) {
+          const idx = familyData.findIndex(p => p.id === id);
+          if (idx !== -1) familyData[idx] = member;
+        } else {
+          familyData.push(member);
+          currentFocusId = member.id;
+        }
+
+        syncData();
+        document.getElementById('memberModal').classList.add('hidden');
+      });
+
+      document.getElementById('btnDeletePerson').onclick = () => {
+        const id = document.getElementById('editPersonId').value;
+        if (confirm("Delete this person?")) {
+          familyData = familyData.filter(p => p.id !== id);
+          syncData();
+          document.getElementById('memberModal').classList.add('hidden');
+        }
+      };
+
+      document.getElementById('btnAddPerson').onclick = () => openEditModal();
+      document.getElementById('btnCloseModal').onclick = () => document.getElementById('memberModal').classList.add('hidden');
+      document.getElementById('btnViewFocus').onclick = () => switchView('focus');
+      document.getElementById('btnViewCanvas').onclick = () => switchView('canvas');
+    }
+
+    // Kinship BFS algorithm
+    function computeKinship() {
+      const aId = document.getElementById('kinPersonA').value;
+      const bId = document.getElementById('kinPersonB').value;
+      const res = document.getElementById('kinshipResult');
+      if (aId === bId) { res.innerText = "Same person"; return; }
+
+      const a = familyData.find(p => p.id === aId);
+      const b = familyData.find(p => p.id === bId);
+      if (!a || !b) return;
+
+      // Direct parent/child
+      if ((b.parents || []).includes(a.id)) { res.innerText = `${a.name} is the Parent of ${b.name}`; return; }
+      if ((a.parents || []).includes(b.id)) { res.innerText = `${a.name} is the Child of ${b.name}`; return; }
+      if (a.spouse === b.id) { res.innerText = `${a.name} and ${b.name} are Spouses`; return; }
+
+      // Siblings check
+      const aParents = a.parents || [];
+      const bParents = b.parents || [];
+      const sharedParents = aParents.filter(p => bParents.includes(p));
+      if (sharedParents.length > 0) { res.innerText = `${a.name} and ${b.name} are Siblings`; return; }
+
+      // Grandparent check
+      for (let pId of bParents) {
+        const p = familyData.find(x => x.id === pId);
+        if (p && (p.parents || []).includes(a.id)) { res.innerText = `${a.name} is the Grandparent of ${b.name}`; return; }
+      }
+
+      res.innerText = `Connected relatives in the same extended lineage`;
+    }
+
     function populateDropdowns() {
       const p1 = document.getElementById('selParent1');
       const p2 = document.getElementById('selParent2');
       const sp = document.getElementById('selSpouse');
+      const kinA = document.getElementById('kinPersonA');
+      const kinB = document.getElementById('kinPersonB');
 
-      const options = `<option value="">-- None --</option>` + familyData.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
-      p1.innerHTML = options;
-      p2.innerHTML = options;
-      sp.innerHTML = options;
+      const opts = `<option value="">-- None --</option>` + familyData.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+      p1.innerHTML = opts; p2.innerHTML = opts; sp.innerHTML = opts;
+      kinA.innerHTML = familyData.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+      kinB.innerHTML = familyData.map((p, idx) => `<option value="${p.id}" ${idx===1?'selected':''}>${p.name}</option>`).join('');
     }
 
     window.openEditModal = function(id = null) {
-      const modal = document.getElementById('memberModal');
       const form = document.getElementById('memberForm');
       form.reset();
+      document.getElementById('photoPreviewContainer').classList.add('hidden');
+      document.getElementById('inpPhotoData').value = '';
 
       if (id) {
-        const p = familyData.find(item => item.id === id);
+        const p = familyData.find(x => x.id === id);
         if (!p) return;
-        document.getElementById('modalTitle').innerText = 'Edit Profile';
+        document.getElementById('modalTitle').innerText = 'Edit Relative';
         document.getElementById('editPersonId').value = p.id;
         document.getElementById('inpName').value = p.name;
-        document.getElementById('inpBirthYear').value = p.birth || '';
-        document.getElementById('inpDeathYear').value = p.death || '';
-        document.getElementById('inpPhoto').value = p.photo || '';
+        document.getElementById('inpBirthday').value = p.birthday || '';
+        document.getElementById('inpDeathDate').value = p.deathDate || '';
+        document.getElementById('inpBio').value = p.bio || '';
         document.getElementById('inpRelation').value = p.relation || '';
         document.getElementById('selParent1').value = (p.parents && p.parents[0]) || '';
         document.getElementById('selParent2').value = (p.parents && p.parents[1]) || '';
         document.getElementById('selSpouse').value = p.spouse || '';
+        if (p.photo) {
+          document.getElementById('inpPhotoData').value = p.photo;
+          document.getElementById('photoPreview').src = p.photo;
+          document.getElementById('photoPreviewContainer').classList.remove('hidden');
+        }
         document.getElementById('btnDeletePerson').classList.remove('hidden');
       } else {
-        document.getElementById('modalTitle').innerText = 'Add Family Member';
+        document.getElementById('modalTitle').innerText = 'Add Relative';
         document.getElementById('editPersonId').value = '';
         document.getElementById('btnDeletePerson').classList.add('hidden');
       }
-      modal.classList.remove('hidden');
+      document.getElementById('memberModal').classList.remove('hidden');
     };
 
-    document.getElementById('memberForm').addEventListener('submit', (e) => {
-      e.preventDefault();
-      const id = document.getElementById('editPersonId').value;
-      const parents = [];
-      const p1 = document.getElementById('selParent1').value;
-      const p2 = document.getElementById('selParent2').value;
-      if (p1) parents.push(p1);
-      if (p2 && p2 !== p1) parents.push(p2);
-
-      const member = {
-        id: id || Date.now().toString(),
-        name: document.getElementById('inpName').value.trim(),
-        birth: parseInt(document.getElementById('inpBirthYear').value) || null,
-        death: parseInt(document.getElementById('inpDeathYear').value) || null,
-        photo: document.getElementById('inpPhoto').value.trim(),
-        relation: document.getElementById('inpRelation').value.trim(),
-        parents: parents,
-        spouse: document.getElementById('selSpouse').value || null
-      };
-
-      if (id) {
-        const idx = familyData.findIndex(p => p.id === id);
-        if (idx !== -1) familyData[idx] = member;
-      } else {
-        familyData.push(member);
-        currentFocusId = member.id;
-      }
-
-      syncDataToCloud();
-      document.getElementById('memberModal').classList.add('hidden');
-    });
-
-    document.getElementById('btnDeletePerson').addEventListener('click', () => {
-      const id = document.getElementById('editPersonId').value;
-      if (confirm("Are you sure you want to remove this person?")) {
-        familyData = familyData.filter(p => p.id !== id);
-        syncDataToCloud();
-        document.getElementById('memberModal').classList.add('hidden');
-      }
-    });
-
-    // -------------------------------------------------------------
-    // 5. VIEW SWITCHING & LISTENERS
-    // -------------------------------------------------------------
     function switchView(mode) {
       if (mode === 'focus') {
         document.getElementById('focusView').classList.remove('hidden');
         document.getElementById('canvasView').classList.add('hidden');
-        document.getElementById('btnViewFocus').className = "px-2.5 py-1 rounded-md bg-white shadow-sm text-indigo-700 font-semibold";
-        document.getElementById('btnViewCanvas').className = "px-2.5 py-1 rounded-md text-slate-600";
+        document.getElementById('btnViewFocus').className = "px-2 py-1 rounded bg-white shadow-sm text-indigo-700 font-semibold";
+        document.getElementById('btnViewCanvas').className = "px-2 py-1 rounded text-slate-600";
       } else {
         document.getElementById('focusView').classList.add('hidden');
         document.getElementById('canvasView').classList.remove('hidden');
-        document.getElementById('btnViewCanvas').className = "px-2.5 py-1 rounded-md bg-white shadow-sm text-indigo-700 font-semibold";
-        document.getElementById('btnViewFocus').className = "px-2.5 py-1 rounded-md text-slate-600";
+        document.getElementById('btnViewCanvas').className = "px-2 py-1 rounded bg-white shadow-sm text-indigo-700 font-semibold";
+        document.getElementById('btnViewFocus').className = "px-2 py-1 rounded text-slate-600";
       }
     }
 
-    document.getElementById('btnViewFocus').onclick = () => switchView('focus');
-    document.getElementById('btnViewCanvas').onclick = () => switchView('canvas');
-    document.getElementById('btnAddPerson').onclick = () => openEditModal();
-    document.getElementById('btnCloseModal').onclick = () => document.getElementById('memberModal').classList.add('hidden');
+    // -----------------------------------------------------------------
+    // 6. TOUCH PINCH-ZOOM WITH CENTER-FOCUSED ANCHORING
+    // -----------------------------------------------------------------
+    let panX = 0, panY = 0, scale = 1;
+    function setupPanZoom() {
+      const viewport = document.getElementById('canvasView');
+      const container = document.getElementById('treeContainer');
 
-    document.getElementById('btnConfigFirebase').onclick = () => {
-      const apiKey = prompt("Paste your Firebase apiKey:");
-      const databaseURL = prompt("Paste your Firebase databaseURL (e.g., https://your-tree-default-rtdb.firebaseio.com):");
-      const projectId = prompt("Paste your Firebase projectId:");
-      if (apiKey && databaseURL && projectId) {
-        initFirebase({ apiKey, databaseURL, projectId });
+      function updateTransform() {
+        container.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
       }
-    };
 
-    // Load Local Cache on Start
-    const saved = localStorage.getItem('localFamilyTree');
-    if (saved) {
-      try { familyData = JSON.parse(saved); } catch(e){}
+      let isDragging = false, startX = 0, startY = 0;
+      let initialDist = 0, initialScale = 1, anchorWorldX = 0, anchorWorldY = 0;
+
+      viewport.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+          isDragging = true;
+          startX = e.touches[0].clientX - panX;
+          startY = e.touches[0].clientY - panY;
+        } else if (e.touches.length === 2) {
+          isDragging = false;
+          initialDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+          initialScale = scale;
+          const rect = viewport.getBoundingClientRect();
+          const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left;
+          const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top;
+          anchorWorldX = (midX - panX) / scale;
+          anchorWorldY = (midY - panY) / scale;
+        }
+      }, { passive: false });
+
+      viewport.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        if (e.touches.length === 1 && isDragging) {
+          panX = e.touches[0].clientX - startX;
+          panY = e.touches[0].clientY - startY;
+          updateTransform();
+        } else if (e.touches.length === 2 && initialDist > 0) {
+          const newDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+          const nextScale = Math.min(Math.max(initialScale * (newDist / initialDist), 0.3), 3);
+          const rect = viewport.getBoundingClientRect();
+          const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left;
+          const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top;
+          panX = midX - anchorWorldX * nextScale;
+          panY = midY - anchorWorldY * nextScale;
+          scale = nextScale;
+          updateTransform();
+        }
+      }, { passive: false });
+
+      viewport.addEventListener('touchend', () => { isDragging = false; initialDist = 0; });
+
+      document.getElementById('btnZoomIn').onclick = () => { scale = Math.min(scale * 1.25, 3); updateTransform(); };
+      document.getElementById('btnZoomOut').onclick = () => { scale = Math.max(scale / 1.25, 0.3); updateTransform(); };
+      document.getElementById('btnResetView').onclick = () => { scale = 1; panX = 0; panY = 0; updateTransform(); };
     }
 
-    renderAll();
+    window.onload = initApp;
   </script>
 </body>
 </html>
