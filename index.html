@@ -6,13 +6,13 @@
   <title>Our Family Tree</title>
   
   <!-- Tree Browser Tab Icon (Favicon) -->
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%234f46e5'/%3E%3Ctext x='32' y='43' font-size='34' text-anchor='middle'%3E%F0%9F%8C%B3%3C/text%3E%3C/svg%3E">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%23007AFF'/%3E%3Ctext x='32' y='43' font-size='34' text-anchor='middle'%3E%F0%9F%8C%B3%3C/text%3E%3C/svg%3E">
 
   <!-- PWA Meta Tags -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Family Tree">
-  <meta name="theme-color" content="#4f46e5">
+  <meta name="theme-color" content="#F5F5F7">
 
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Firebase SDK -->
@@ -22,66 +22,104 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
   <style>
-    body { touch-action: manipulation; }
+    :root {
+      --apple-bg: #F5F5F7;
+      --apple-blue: #007AFF;
+      --apple-text: #1D1D1F;
+      --apple-secondary: #86868B;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+      background-color: var(--apple-bg);
+      color: var(--apple-text);
+      -webkit-font-smoothing: antialiased;
+      touch-action: manipulation;
+    }
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-    .canvas-viewport { touch-action: none; user-select: none; }
+    .canvas-viewport {
+      touch-action: none;
+      user-select: none;
+      background-color: #F5F5F7;
+      background-image: radial-gradient(#D2D2D7 0.75px, transparent 0.75px);
+      background-size: 20px 20px;
+    }
+    .apple-glass {
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: saturate(180%) blur(20px);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+    }
+    .apple-card {
+      background: #FFFFFF;
+      border: 1px solid rgba(0, 0, 0, 0.06);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.03);
+      transition: transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+    .apple-card:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.07), 0 2px 6px rgba(0, 0, 0, 0.04);
+      border-color: rgba(0, 122, 255, 0.35);
+    }
     .dimmed { opacity: 0.22 !important; filter: grayscale(80%); transition: all 0.3s ease; }
   </style>
 </head>
-<body class="bg-slate-50 text-slate-800 font-sans antialiased overflow-hidden flex flex-col h-screen">
+<body class="overflow-hidden flex flex-col h-screen">
 
-  <!-- Top Bar -->
-  <header class="bg-white border-b border-slate-200 px-3 py-2.5 flex items-center justify-between shrink-0 z-30 gap-2">
-    <div class="flex items-center gap-2 min-w-0">
-      <div class="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow shrink-0">🌳</div>
-      <h1 id="siteTitleHeader" class="font-bold text-slate-800 text-sm sm:text-base truncate">Family Tree</h1>
+  <!-- Apple Frosted Top Navigation Bar -->
+  <header class="apple-glass border-b border-black/[0.08] px-3.5 py-2.5 flex items-center justify-between shrink-0 z-30 gap-2.5">
+    <div class="flex items-center gap-2.5 min-w-0">
+      <div class="w-8 h-8 rounded-[10px] bg-gradient-to-b from-[#34C759] to-[#28A745] text-white flex items-center justify-center text-base shadow-sm shrink-0">🌳</div>
+      <h1 id="siteTitleHeader" class="font-semibold text-[#1D1D1F] tracking-tight text-sm sm:text-base truncate">Family Tree</h1>
     </div>
 
-    <!-- Search Bar -->
+    <!-- iOS Spotlight-style Search Bar -->
     <div class="relative flex-1 max-w-xs">
-      <input type="text" id="searchInput" placeholder="Search relative (English / தமிழ்)..." class="w-full px-2.5 py-1 text-xs border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50">
-      <div id="searchResults" class="absolute left-0 right-0 top-8 bg-white border border-slate-200 shadow-xl rounded-lg max-h-48 overflow-y-auto hidden z-50"></div>
+      <div class="relative flex items-center">
+        <span class="absolute left-2.5 text-[#86868B] text-xs pointer-events-none">🔍</span>
+        <input type="text" id="searchInput" placeholder="Search (English / தமிழ்)" class="w-full pl-7 pr-3 py-1.5 text-xs rounded-[10px] bg-black/[0.05] focus:bg-white border border-transparent focus:border-[#007AFF]/40 focus:ring-2 focus:ring-[#007AFF]/20 outline-none transition-all placeholder-[#86868B]">
+      </div>
+      <div id="searchResults" class="absolute left-0 right-0 top-9 apple-glass border border-black/[0.08] shadow-2xl rounded-2xl max-h-56 overflow-y-auto hidden z-50 divide-y divide-black/[0.05]"></div>
     </div>
     
-    <!-- Header Actions -->
+    <!-- Header Controls -->
     <div class="flex items-center gap-1.5 shrink-0">
-      <button id="btnOpenKinship" title="Relationship Calculator" class="p-1.5 text-xs bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700 font-medium flex items-center gap-1">
+      <button id="btnOpenKinship" title="Relationship Calculator" class="px-2.5 py-1.5 text-xs bg-black/[0.05] hover:bg-black/[0.09] active:scale-95 rounded-[10px] text-[#1D1D1F] font-medium flex items-center gap-1 transition-all">
         <span>🔗</span><span class="hidden sm:inline">Kinship</span>
       </button>
 
-      <div class="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs font-semibold">
-        <button id="btnViewFocus" class="px-2 py-1 rounded text-slate-600">Mobile</button>
-        <button id="btnViewCanvas" class="px-2 py-1 rounded text-slate-600">Canvas</button>
+      <!-- Apple Segmented Control -->
+      <div class="flex bg-black/[0.06] p-0.5 rounded-[10px] text-xs font-medium">
+        <button id="btnViewFocus" class="px-2.5 py-1 rounded-[8px] text-[#86868B] transition-all">Mobile</button>
+        <button id="btnViewCanvas" class="px-2.5 py-1 rounded-[8px] text-[#86868B] transition-all">Canvas</button>
       </div>
 
       <!-- Admin Actions (Hidden until unlocked) -->
-      <button id="btnAdminCsv" title="Import CSV" class="hidden px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-lg border border-emerald-200 flex items-center gap-1">
-        <span>📥</span><span class="hidden md:inline">CSV Import</span>
+      <button id="btnAdminCsv" title="Import CSV" class="hidden px-2.5 py-1.5 bg-[#34C759]/15 hover:bg-[#34C759]/25 text-[#1E7E34] text-xs font-semibold rounded-[10px] flex items-center gap-1 transition-all">
+        <span>📥</span><span class="hidden md:inline">CSV</span>
       </button>
 
-      <button id="btnAddPerson" title="Add Relative" class="hidden bg-indigo-600 text-white px-2.5 py-1 rounded-lg text-xs font-semibold shadow hover:bg-indigo-700">
+      <button id="btnAddPerson" title="Add Relative" class="hidden bg-[#007AFF] hover:bg-[#0066D6] active:scale-95 text-white px-2.5 py-1.5 rounded-[10px] text-xs font-semibold shadow-sm transition-all">
         + Add
       </button>
 
-      <button id="btnAdminSettings" title="Tree & Tile Settings" class="hidden p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg border border-slate-200">
+      <button id="btnAdminSettings" title="Tree & Tile Settings" class="hidden p-1.5 bg-black/[0.05] hover:bg-black/[0.09] text-[#1D1D1F] text-xs font-semibold rounded-[10px] transition-all">
         ⚙️
       </button>
 
-      <!-- Admin Lock/Unlock Toggle -->
-      <button id="btnAdminToggle" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg border border-slate-200">
+      <!-- Admin Lock/Unlock Pill -->
+      <button id="btnAdminToggle" class="px-2.5 py-1.5 bg-black/[0.05] hover:bg-black/[0.09] active:scale-95 text-[#1D1D1F] text-xs font-medium rounded-[10px] transition-all">
         <span id="adminStatusText">🔒 Admin</span>
       </button>
     </div>
   </header>
 
-  <!-- Live Upcoming Birthdays Ticker -->
-  <div id="birthdayTicker" class="bg-indigo-50 border-b border-indigo-100 px-3 py-1.5 text-xs text-indigo-900 flex items-center justify-between shrink-0 overflow-x-auto whitespace-nowrap">
-    <div class="flex items-center gap-2" id="birthdayTickerText">
+  <!-- Subtle Apple Sub-Banner (Birthdays & Poster Export) -->
+  <div id="birthdayTicker" class="bg-white/70 backdrop-blur-md border-b border-black/[0.05] px-3.5 py-1.5 text-xs text-[#1D1D1F] flex items-center justify-between shrink-0 overflow-x-auto whitespace-nowrap">
+    <div class="flex items-center gap-2 text-[#515154]" id="birthdayTickerText">
       <span>🎂 Checking upcoming milestones...</span>
     </div>
-    <button id="btnExportPoster" class="text-[11px] bg-white border border-indigo-200 rounded px-2 py-0.5 ml-2 font-medium text-indigo-700 shadow-sm shrink-0 hover:bg-indigo-50 active:scale-95 transition-transform">
-      📸 Save Poster
+    <button id="btnExportPoster" class="text-[11px] bg-[#007AFF]/10 hover:bg-[#007AFF]/20 text-[#007AFF] rounded-full px-3 py-0.5 ml-2 font-semibold shrink-0 active:scale-95 transition-all">
+      Save Poster
     </button>
   </div>
 
@@ -93,289 +131,274 @@
       <div class="w-full space-y-5">
 
         <!-- Multi-Generation Bloodline Chain (Visible when Trace Bloodline is active on Mobile) -->
-        <div id="focusBloodlineContainer" class="hidden bg-indigo-50/80 border border-indigo-200 rounded-2xl p-3 space-y-2">
+        <div id="focusBloodlineContainer" class="hidden bg-white/90 border border-[#007AFF]/25 rounded-2xl p-3.5 shadow-sm space-y-2">
           <div class="flex items-center justify-between">
-            <h2 class="text-xs font-bold text-indigo-700 uppercase tracking-wider">Direct Bloodline (Oldest → Current)</h2>
-            <button onclick="document.getElementById('btnHighlightLineage').click()" class="text-[11px] text-indigo-600 font-semibold underline">Close</button>
+            <h2 class="text-[11px] font-semibold text-[#007AFF] uppercase tracking-wider">Direct Bloodline (Oldest → Current)</h2>
+            <button onclick="document.getElementById('btnHighlightLineage').click()" class="text-[11px] text-[#007AFF] font-semibold">Done</button>
           </div>
           <div id="focusBloodlineChain" class="flex flex-col items-center space-y-1.5"></div>
         </div>
         
         <!-- Parents -->
         <div>
-          <div class="flex items-center justify-between mb-2">
-            <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Parents</h2>
-            <button id="btnHighlightLineage" class="text-[11px] text-indigo-600 font-semibold underline">Trace Bloodline</button>
+          <div class="flex items-center justify-between mb-2 px-1">
+            <h2 class="text-[11px] font-semibold text-[#86868B] uppercase tracking-wider">Parents</h2>
+            <button id="btnHighlightLineage" class="text-[11px] text-[#007AFF] font-semibold">Trace Bloodline</button>
           </div>
           <div id="focusParents" class="flex justify-center gap-2.5 flex-wrap"></div>
         </div>
 
         <!-- Center Focus Person Card -->
         <div class="flex flex-col items-center">
-          <div class="w-0.5 h-3 bg-slate-300"></div>
-          <div id="focusCurrentCard" class="w-full bg-white rounded-2xl p-4 shadow-md border-2 border-indigo-500 relative transition-all"></div>
-          <div class="w-0.5 h-3 bg-slate-300"></div>
+          <div class="w-[1.5px] h-3.5 bg-[#C7C7CC]"></div>
+          <div id="focusCurrentCard" class="w-full bg-white rounded-2xl p-4 shadow-md border-2 border-[#007AFF] relative transition-all"></div>
+          <div class="w-[1.5px] h-3.5 bg-[#C7C7CC]"></div>
         </div>
 
         <!-- Spouse -->
         <div id="focusSpouseContainer">
-          <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 text-center">Spouse / Partner</h2>
+          <h2 class="text-[11px] font-semibold text-[#86868B] uppercase tracking-wider mb-2 text-center">Spouse / Partner</h2>
           <div id="focusSpouse" class="flex justify-center gap-2.5"></div>
         </div>
 
         <!-- Children -->
         <div>
-          <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 text-center">Children</h2>
+          <h2 class="text-[11px] font-semibold text-[#86868B] uppercase tracking-wider mb-2 text-center">Children</h2>
           <div id="focusChildren" class="flex justify-center gap-2.5 flex-wrap"></div>
         </div>
       </div>
     </div>
 
     <!-- VIEW 2: Pan & Zoom Graph Canvas -->
-    <div id="canvasView" class="hidden absolute inset-0 canvas-viewport bg-slate-50 cursor-grab active:cursor-grabbing overflow-hidden">
+    <div id="canvasView" class="hidden absolute inset-0 canvas-viewport cursor-grab active:cursor-grabbing overflow-hidden">
       <div id="treeContainer" class="absolute origin-top-left" style="transform: translate(0px, 0px) scale(1);">
         <svg id="svgEdges" class="absolute inset-0 pointer-events-none" style="z-index: 1;"></svg>
       </div>
       
-      <!-- Floating HUD controls -->
-      <div class="absolute bottom-6 right-4 flex flex-col gap-2 z-20">
-        <button id="btnZoomIn" class="w-10 h-10 rounded-full bg-white shadow-md border border-slate-200 text-lg font-bold flex items-center justify-center active:bg-slate-100">+</button>
-        <button id="btnZoomOut" class="w-10 h-10 rounded-full bg-white shadow-md border border-slate-200 text-lg font-bold flex items-center justify-center active:bg-slate-100">-</button>
-        <button id="btnResetView" disabled class="w-10 h-10 rounded-full bg-white shadow-md border border-slate-200 text-xs font-bold flex items-center justify-center opacity-40 cursor-not-allowed transition-opacity">Reset</button>
+      <!-- Apple Floating Glass Zoom Pill -->
+      <div class="absolute bottom-6 right-4 flex flex-col apple-glass rounded-2xl shadow-lg border border-black/[0.08] overflow-hidden z-20 divide-y divide-black/[0.06]">
+        <button id="btnZoomIn" class="w-10 h-10 text-lg font-medium text-[#1D1D1F] hover:bg-black/[0.04] active:bg-black/[0.08] flex items-center justify-center transition-colors">+</button>
+        <button id="btnZoomOut" class="w-10 h-10 text-lg font-medium text-[#1D1D1F] hover:bg-black/[0.04] active:bg-black/[0.08] flex items-center justify-center transition-colors">−</button>
+        <button id="btnResetView" disabled class="w-10 h-10 text-[10px] font-semibold flex items-center justify-center opacity-35 cursor-not-allowed transition-all">Reset</button>
       </div>
     </div>
   </main>
 
-  <!-- Modal: Admin Settings -->
-  <div id="settingsModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white w-full max-w-md rounded-2xl p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-      <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-        <h3 class="text-sm font-bold text-slate-800 flex items-center gap-1.5"><span>⚙️</span> Tree & Tile Settings</h3>
-        <button id="btnCloseSettings" class="text-slate-400 hover:text-slate-600 font-bold text-lg">&times;</button>
+  <!-- Modal: Apple Settings Sheet -->
+  <div id="settingsModal" class="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-[#F5F5F7] w-full max-w-md rounded-3xl p-5 shadow-2xl border border-white/60 space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center pb-1">
+        <h3 class="text-base font-bold text-[#1D1D1F]">Settings</h3>
+        <button id="btnCloseSettings" class="w-7 h-7 rounded-full bg-black/[0.06] hover:bg-black/[0.1] text-[#86868B] flex items-center justify-center font-bold text-sm">✕</button>
       </div>
 
-      <div class="space-y-2.5">
-        <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Tile Display Fields</h4>
-        <p class="text-[11px] text-slate-500">Choose what appears on tree tiles. Empty fields are automatically hidden.</p>
-        
-        <div class="space-y-2 bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs">
-          <div class="flex items-center justify-between opacity-60">
-            <span class="font-semibold text-slate-700">Full Name (English)</span>
-            <span class="text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded font-semibold">Mandatory</span>
+      <div class="space-y-1.5">
+        <h4 class="text-[11px] font-semibold text-[#86868B] uppercase tracking-wider px-2">Tile Display Fields</h4>
+        <div class="bg-white rounded-2xl border border-black/[0.05] divide-y divide-black/[0.05] text-xs overflow-hidden">
+          <div class="flex items-center justify-between px-3.5 py-2.5 opacity-60">
+            <span class="font-medium text-[#1D1D1F]">Full Name (English)</span>
+            <span class="text-[10px] bg-black/[0.05] text-[#86868B] px-2 py-0.5 rounded-full font-semibold">Required</span>
           </div>
-          <div class="flex items-center justify-between opacity-60">
-            <span class="font-semibold text-slate-700">Profile Photo / Initials</span>
-            <span class="text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded font-semibold">Mandatory</span>
+          <div class="flex items-center justify-between px-3.5 py-2.5 opacity-60">
+            <span class="font-medium text-[#1D1D1F]">Profile Photo / Initials</span>
+            <span class="text-[10px] bg-black/[0.05] text-[#86868B] px-2 py-0.5 rounded-full font-semibold">Required</span>
           </div>
 
-          <hr class="border-slate-200 my-1">
-
-          <label class="flex items-center justify-between cursor-pointer py-1">
-            <span class="font-medium text-slate-700">Tamil Name (தமிழ் பெயர்)</span>
-            <input type="checkbox" id="cfgShowTamil" class="w-4 h-4 accent-indigo-600 rounded">
+          <label class="flex items-center justify-between cursor-pointer px-3.5 py-2.5 hover:bg-black/[0.01]">
+            <span class="font-medium text-[#1D1D1F]">Tamil Name (தமிழ் பெயர்)</span>
+            <input type="checkbox" id="cfgShowTamil" class="w-4 h-4 accent-[#007AFF] rounded">
           </label>
-          <label class="flex items-center justify-between cursor-pointer py-1">
-            <span class="font-medium text-slate-700">Relation Title (e.g. Father)</span>
-            <input type="checkbox" id="cfgShowRelation" class="w-4 h-4 accent-indigo-600 rounded">
+          <label class="flex items-center justify-between cursor-pointer px-3.5 py-2.5 hover:bg-black/[0.01]">
+            <span class="font-medium text-[#1D1D1F]">Relation Title (e.g. Father)</span>
+            <input type="checkbox" id="cfgShowRelation" class="w-4 h-4 accent-[#007AFF] rounded">
           </label>
-          <label class="flex items-center justify-between cursor-pointer py-1">
-            <span class="font-medium text-slate-700">Age & Birth/Passing Years</span>
-            <input type="checkbox" id="cfgShowAge" class="w-4 h-4 accent-indigo-600 rounded">
+          <label class="flex items-center justify-between cursor-pointer px-3.5 py-2.5 hover:bg-black/[0.01]">
+            <span class="font-medium text-[#1D1D1F]">Age & Birth/Passing Years</span>
+            <input type="checkbox" id="cfgShowAge" class="w-4 h-4 accent-[#007AFF] rounded">
           </label>
-          <label class="flex items-center justify-between cursor-pointer py-1">
-            <span class="font-medium text-slate-700">Short Bio Snippet</span>
-            <input type="checkbox" id="cfgShowBio" class="w-4 h-4 accent-indigo-600 rounded">
+          <label class="flex items-center justify-between cursor-pointer px-3.5 py-2.5 hover:bg-black/[0.01]">
+            <span class="font-medium text-[#1D1D1F]">Short Bio Snippet</span>
+            <input type="checkbox" id="cfgShowBio" class="w-4 h-4 accent-[#007AFF] rounded">
           </label>
         </div>
+        <p class="text-[11px] text-[#86868B] px-2">Empty fields are automatically hidden on tiles.</p>
       </div>
 
-      <div class="space-y-2.5">
-        <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Portal Preferences</h4>
-        <div class="space-y-3 text-xs">
-          <div>
-            <label class="block font-semibold text-slate-600 mb-1">Website / Family Title</label>
-            <input type="text" id="cfgSiteTitle" placeholder="Family Tree" class="w-full px-3 py-1.5 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
+      <div class="space-y-1.5">
+        <h4 class="text-[11px] font-semibold text-[#86868B] uppercase tracking-wider px-2">General</h4>
+        <div class="bg-white rounded-2xl border border-black/[0.05] divide-y divide-black/[0.05] text-xs overflow-hidden">
+          <div class="px-3.5 py-2.5">
+            <label class="block text-[11px] font-medium text-[#86868B] mb-1">Family Tree Title</label>
+            <input type="text" id="cfgSiteTitle" placeholder="Family Tree" class="w-full text-[#1D1D1F] font-medium outline-none">
           </div>
-          <div>
-            <label class="block font-semibold text-slate-600 mb-1">Birthday Alert Window</label>
-            <select id="cfgBirthdayDays" class="w-full px-3 py-1.5 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
+          <div class="px-3.5 py-2.5 flex items-center justify-between">
+            <label class="font-medium text-[#1D1D1F]">Birthday Alert Window</label>
+            <select id="cfgBirthdayDays" class="text-[#007AFF] font-semibold bg-transparent outline-none text-right">
               <option value="30">Next 30 Days</option>
               <option value="60">Next 60 Days</option>
               <option value="90">Next 90 Days</option>
-              <option value="0">Hide Birthday Banner</option>
+              <option value="0">Off</option>
             </select>
           </div>
         </div>
       </div>
 
-      <div class="flex gap-2 pt-2 border-t border-slate-100">
-        <button id="btnSaveSettings" class="flex-1 bg-indigo-600 text-white py-2 rounded-lg text-xs font-semibold shadow hover:bg-indigo-700">
-          Save & Apply Settings
-        </button>
-      </div>
+      <button id="btnSaveSettings" class="w-full bg-[#007AFF] hover:bg-[#0066D6] active:scale-[0.99] text-white py-2.5 rounded-2xl text-xs font-semibold shadow-sm transition-all">
+        Done
+      </button>
     </div>
   </div>
 
   <!-- Modal: Person Details -->
-  <div id="personDetailsModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl relative space-y-4">
-      <button id="btnCloseDetails" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 font-bold text-lg">&times;</button>
+  <div id="personDetailsModal" class="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl border border-black/[0.05] relative space-y-4">
+      <button id="btnCloseDetails" class="absolute top-4 right-4 w-7 h-7 rounded-full bg-black/[0.06] hover:bg-black/[0.1] text-[#86868B] flex items-center justify-center font-bold text-sm">✕</button>
       <div id="personDetailsContent"></div>
     </div>
   </div>
 
-  <!-- Modal: Bilingual Tamil + English Kinship Calculator -->
-  <div id="kinshipModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white w-full max-w-md rounded-2xl p-5 shadow-2xl space-y-4">
-      <div class="flex justify-between items-center border-b border-slate-100 pb-2.5">
-        <h3 class="text-sm font-bold text-slate-800 flex items-center gap-1.5"><span>🔗</span> Kinship Calculator (உறவு முறை)</h3>
-        <button id="btnCloseKinship" class="text-slate-400 hover:text-slate-600 font-bold text-lg">&times;</button>
+  <!-- Modal: Bilingual Tamil + English Kinship Calculator (Clean, No Redundant Swap) -->
+  <div id="kinshipModal" class="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-[#F5F5F7] w-full max-w-md rounded-3xl p-5 shadow-2xl border border-white/60 space-y-4">
+      <div class="flex justify-between items-center">
+        <h3 class="text-base font-bold text-[#1D1D1F]">Kinship (உறவு முறை)</h3>
+        <button id="btnCloseKinship" class="w-7 h-7 rounded-full bg-black/[0.06] hover:bg-black/[0.1] text-[#86868B] flex items-center justify-center font-bold text-sm">✕</button>
       </div>
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1">Person A</label>
-          <select id="kinPersonA" class="w-full px-3 py-2 border rounded-lg text-xs bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none"></select>
+      <div class="bg-white rounded-2xl border border-black/[0.05] divide-y divide-black/[0.05] overflow-hidden text-xs">
+        <div class="px-3.5 py-2.5 flex items-center justify-between gap-3">
+          <span class="font-semibold text-[#86868B] shrink-0">Person A</span>
+          <select id="kinPersonA" class="w-full text-right font-semibold text-[#1D1D1F] bg-transparent outline-none"></select>
         </div>
-        <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1">Person B</label>
-          <select id="kinPersonB" class="w-full px-3 py-2 border rounded-lg text-xs bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none"></select>
+        <div class="px-3.5 py-2.5 flex items-center justify-between gap-3">
+          <span class="font-semibold text-[#86868B] shrink-0">Person B</span>
+          <select id="kinPersonB" class="w-full text-right font-semibold text-[#1D1D1F] bg-transparent outline-none"></select>
         </div>
       </div>
 
-      <div class="flex justify-center">
-        <button id="btnSwapKinship" class="text-[11px] text-indigo-600 font-semibold hover:underline flex items-center gap-1">
-          ⇅ Swap Person A & B
-        </button>
-      </div>
-
-      <div id="kinshipResult" class="p-4 bg-indigo-50/90 border border-indigo-200 rounded-2xl text-center space-y-2.5">
-        <p class="text-xs text-indigo-900 font-semibold">Select two relatives to see how they address each other</p>
+      <div id="kinshipResult" class="space-y-2.5">
+        <p class="text-xs text-[#86868B] text-center py-3">Select two relatives to see their relationship</p>
       </div>
     </div>
   </div>
 
   <!-- Modal: Admin CSV Batch Importer -->
-  <div id="csvModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white w-full max-w-md rounded-2xl p-5 shadow-2xl space-y-4">
+  <div id="csvModal" class="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-md rounded-3xl p-5 shadow-2xl space-y-4">
       <div class="flex justify-between items-center">
-        <h3 class="text-sm font-bold text-slate-800">Batch Import Family Members (CSV)</h3>
-        <button id="btnCloseCsv" class="text-slate-400 hover:text-slate-600 font-bold text-lg">&times;</button>
+        <h3 class="text-base font-bold text-[#1D1D1F]">CSV Batch Import</h3>
+        <button id="btnCloseCsv" class="w-7 h-7 rounded-full bg-black/[0.06] hover:bg-black/[0.1] text-[#86868B] flex items-center justify-center font-bold text-sm">✕</button>
       </div>
       
-      <p class="text-xs text-slate-500 leading-relaxed">
-        Upload a spreadsheet (.csv) containing your relatives. Columns:
-        <code class="text-[11px] bg-slate-100 px-1 py-0.5 rounded text-indigo-600 font-mono block mt-1">id, name, tamilName, birthday, deathDate, relation, bio, parent1, parent2, spouse, photo</code>
+      <p class="text-xs text-[#86868B] leading-relaxed">
+        Columns supported:
+        <code class="text-[11px] bg-[#F5F5F7] px-2 py-1 rounded-lg text-[#007AFF] font-mono block mt-1">id, name, tamilName, birthday, deathDate, relation, bio, parent1, parent2, spouse, photo</code>
       </p>
 
-      <div class="flex gap-2">
-        <button id="btnDownloadTemplate" class="flex-1 py-2 px-3 border border-slate-200 hover:bg-slate-50 rounded-lg text-xs font-semibold text-slate-700 text-center">
-          📄 Download Blank Template
-        </button>
-      </div>
+      <button id="btnDownloadTemplate" class="w-full py-2 px-3 bg-[#F5F5F7] hover:bg-black/[0.07] rounded-xl text-xs font-semibold text-[#1D1D1F] text-center transition-colors">
+        📄 Download Blank Template
+      </button>
 
-      <div class="border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-xl p-4 text-center">
+      <div class="border-2 border-dashed border-black/[0.12] hover:border-[#007AFF] rounded-2xl p-4 text-center transition-colors">
         <input type="file" id="csvFileInput" accept=".csv" class="hidden">
-        <button onclick="document.getElementById('csvFileInput').click()" class="bg-indigo-50 text-indigo-700 px-4 py-2 rounded-lg text-xs font-semibold hover:bg-indigo-100">
-          📁 Choose CSV File
+        <button onclick="document.getElementById('csvFileInput').click()" class="bg-[#007AFF]/10 text-[#007AFF] px-4 py-2 rounded-xl text-xs font-semibold hover:bg-[#007AFF]/20 transition-colors">
+          Choose CSV File
         </button>
-        <p id="csvFileName" class="text-xs text-slate-400 mt-2 truncate">No file chosen</p>
+        <p id="csvFileName" class="text-xs text-[#86868B] mt-2 truncate">No file chosen</p>
       </div>
 
-      <div class="flex items-center gap-2">
-        <input type="checkbox" id="chkReplaceAll" checked class="rounded text-indigo-600">
-        <label for="chkReplaceAll" class="text-xs text-slate-600 font-medium">Replace current tree completely</label>
-      </div>
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" id="chkReplaceAll" checked class="accent-[#007AFF] rounded">
+        <span class="text-xs text-[#1D1D1F] font-medium">Replace current tree completely</span>
+      </label>
 
-      <div class="flex gap-2 pt-2">
-        <button id="btnExecuteCsvImport" disabled class="flex-1 bg-indigo-600 disabled:bg-slate-300 text-white py-2 rounded-lg text-xs font-semibold shadow hover:bg-indigo-700">
-          Import & Sync to Cloud
-        </button>
-      </div>
+      <button id="btnExecuteCsvImport" disabled class="w-full bg-[#007AFF] disabled:bg-black/[0.12] text-white py-2.5 rounded-2xl text-xs font-semibold shadow-sm transition-all">
+        Import & Sync to Cloud
+      </button>
     </div>
   </div>
 
   <!-- Modal: Add / Edit Family Member -->
-  <div id="memberModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-end sm:items-center justify-center">
-    <div class="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+  <div id="memberModal" class="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 hidden flex items-end sm:items-center justify-center">
+    <div class="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl max-h-[90vh] overflow-y-auto">
       <div class="flex justify-between items-center mb-4">
-        <h3 id="modalTitle" class="text-base font-bold text-slate-800">Add Family Member</h3>
-        <button id="btnCloseModal" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+        <h3 id="modalTitle" class="text-base font-bold text-[#1D1D1F]">Add Family Member</h3>
+        <button id="btnCloseModal" class="w-7 h-7 rounded-full bg-black/[0.06] hover:bg-black/[0.1] text-[#86868B] flex items-center justify-center font-bold text-sm">✕</button>
       </div>
       
       <form id="memberForm" class="space-y-3 text-xs">
         <input type="hidden" id="editPersonId">
         
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           <div>
-            <label class="block font-semibold text-slate-600 mb-1">Full Name (English) *</label>
-            <input type="text" id="inpName" required placeholder="e.g. Kariyappa Gowder" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+            <label class="block font-semibold text-[#86868B] mb-1">Full Name (English) *</label>
+            <input type="text" id="inpName" required placeholder="e.g. Kariyappa Gowder" class="w-full px-3 py-2 bg-[#F5F5F7] rounded-xl focus:bg-white border border-transparent focus:border-[#007AFF] outline-none">
           </div>
           <div>
-            <label class="block font-semibold text-slate-600 mb-1">Tamil Name (தமிழ் பெயர்)</label>
-            <input type="text" id="inpTamilName" placeholder="e.g. கரியப்ப கவுடர்" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+            <label class="block font-semibold text-[#86868B] mb-1">Tamil Name (தமிழ் பெயர்)</label>
+            <input type="text" id="inpTamilName" placeholder="e.g. கரியப்ப கவுடர்" class="w-full px-3 py-2 bg-[#F5F5F7] rounded-xl focus:bg-white border border-transparent focus:border-[#007AFF] outline-none">
           </div>
         </div>
 
         <div class="grid grid-cols-3 gap-2">
           <div>
-            <label class="block font-semibold text-slate-600 mb-1">Gender</label>
-            <select id="selGender" class="w-full px-2 py-2 border rounded-lg outline-none">
+            <label class="block font-semibold text-[#86868B] mb-1">Gender</label>
+            <select id="selGender" class="w-full px-2 py-2 bg-[#F5F5F7] rounded-xl outline-none">
               <option value="">Auto</option>
               <option value="M">Male</option>
               <option value="F">Female</option>
             </select>
           </div>
           <div>
-            <label class="block font-semibold text-slate-600 mb-1">Birthday</label>
-            <input type="date" id="inpBirthday" class="w-full px-2 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+            <label class="block font-semibold text-[#86868B] mb-1">Birthday</label>
+            <input type="date" id="inpBirthday" class="w-full px-2 py-2 bg-[#F5F5F7] rounded-xl outline-none">
           </div>
           <div>
-            <label class="block font-semibold text-slate-600 mb-1">Passed Date</label>
-            <input type="date" id="inpDeathDate" class="w-full px-2 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+            <label class="block font-semibold text-[#86868B] mb-1">Passed Date</label>
+            <input type="date" id="inpDeathDate" class="w-full px-2 py-2 bg-[#F5F5F7] rounded-xl outline-none">
           </div>
         </div>
 
         <div>
-          <label class="block font-semibold text-slate-600 mb-1">Profile Photo</label>
+          <label class="block font-semibold text-[#86868B] mb-1">Profile Photo</label>
           <div class="flex gap-2 items-center">
-            <input type="file" id="inpPhotoFile" accept="image/*" class="text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+            <input type="file" id="inpPhotoFile" accept="image/*" class="text-xs text-[#86868B] file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-[#007AFF]/10 file:text-[#007AFF] hover:file:bg-[#007AFF]/20">
             <input type="hidden" id="inpPhotoData">
           </div>
           <div id="photoPreviewContainer" class="mt-2 hidden">
-            <img id="photoPreview" src="" class="w-12 h-12 rounded-full object-cover border border-slate-200">
+            <img id="photoPreview" src="" class="w-12 h-12 rounded-full object-cover border border-black/10">
           </div>
         </div>
 
         <div>
-          <label class="block font-semibold text-slate-600 mb-1">Bio, Anecdotes & Memories</label>
-          <textarea id="inpBio" rows="2" placeholder="Life stories, career, milestones..." class="w-full px-3 py-1.5 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"></textarea>
+          <label class="block font-semibold text-[#86868B] mb-1">Bio & Memories</label>
+          <textarea id="inpBio" rows="2" placeholder="Life stories, career, milestones..." class="w-full px-3 py-2 bg-[#F5F5F7] rounded-xl focus:bg-white border border-transparent focus:border-[#007AFF] outline-none"></textarea>
         </div>
 
         <div>
-          <label class="block font-semibold text-slate-600 mb-1">Relation Title</label>
-          <input type="text" id="inpRelation" placeholder="e.g. Father, Sister" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+          <label class="block font-semibold text-[#86868B] mb-1">Relation Title</label>
+          <input type="text" id="inpRelation" placeholder="e.g. Father, Sister" class="w-full px-3 py-2 bg-[#F5F5F7] rounded-xl focus:bg-white border border-transparent focus:border-[#007AFF] outline-none">
         </div>
 
         <div class="grid grid-cols-2 gap-2">
           <div>
-            <label class="block font-semibold text-slate-600 mb-1">Parent 1</label>
-            <select id="selParent1" class="w-full px-2 py-2 border rounded-lg outline-none"></select>
+            <label class="block font-semibold text-[#86868B] mb-1">Parent 1</label>
+            <select id="selParent1" class="w-full px-2 py-2 bg-[#F5F5F7] rounded-xl outline-none"></select>
           </div>
           <div>
-            <label class="block font-semibold text-slate-600 mb-1">Parent 2</label>
-            <select id="selParent2" class="w-full px-2 py-2 border rounded-lg outline-none"></select>
+            <label class="block font-semibold text-[#86868B] mb-1">Parent 2</label>
+            <select id="selParent2" class="w-full px-2 py-2 bg-[#F5F5F7] rounded-xl outline-none"></select>
           </div>
         </div>
 
         <div>
-          <label class="block font-semibold text-slate-600 mb-1">Spouse / Partner</label>
-          <select id="selSpouse" class="w-full px-3 py-2 border rounded-lg outline-none"></select>
+          <label class="block font-semibold text-[#86868B] mb-1">Spouse / Partner</label>
+          <select id="selSpouse" class="w-full px-3 py-2 bg-[#F5F5F7] rounded-xl outline-none"></select>
         </div>
 
         <div class="flex gap-2 pt-3">
-          <button type="button" id="btnDeletePerson" class="hidden px-3 py-2 text-red-600 border border-red-200 rounded-lg hover:bg-red-50 font-semibold">Delete</button>
-          <button type="submit" class="flex-1 bg-indigo-600 text-white py-2 rounded-lg font-semibold shadow hover:bg-indigo-700">Save Member</button>
+          <button type="button" id="btnDeletePerson" class="hidden px-4 py-2.5 text-[#FF3B30] bg-[#FF3B30]/10 rounded-2xl hover:bg-[#FF3B30]/20 font-semibold">Delete</button>
+          <button type="submit" class="flex-1 bg-[#007AFF] text-white py-2.5 rounded-2xl font-semibold shadow-sm hover:bg-[#0066D6]">Save</button>
         </div>
       </form>
     </div>
@@ -418,6 +441,15 @@
     let parsedCsvResult = null;
     let activeViewMode = 'focus';
 
+    // Off-screen text width measurer for symmetrical 10px dynamic tiles
+    const textMeasureCanvas = document.createElement('canvas');
+    const textMeasureCtx = textMeasureCanvas.getContext('2d');
+    function measureTextPx(text, fontSpec) {
+      if (!text) return 0;
+      textMeasureCtx.font = fontSpec;
+      return Math.ceil(textMeasureCtx.measureText(text).width);
+    }
+
     // -----------------------------------------------------------------
     // 2. INITIALIZATION
     // -----------------------------------------------------------------
@@ -427,9 +459,9 @@
         short_name: "FamilyTree",
         start_url: "./",
         display: "standalone",
-        background_color: "#f8fafc",
-        theme_color: "#4f46e5",
-        icons: [{ src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%234f46e5'/%3E%3Ctext x='32' y='43' font-size='34' text-anchor='middle'%3E%F0%9F%8C%B3%3C/text%3E%3C/svg%3E", sizes: "512x512", type: "image/svg+xml" }]
+        background_color: "#F5F5F7",
+        theme_color: "#007AFF",
+        icons: [{ src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%23007AFF'/%3E%3Ctext x='32' y='43' font-size='34' text-anchor='middle'%3E%F0%9F%8C%B3%3C/text%3E%3C/svg%3E", sizes: "512x512", type: "image/svg+xml" }]
       };
       const blob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
       const link = document.createElement('link');
@@ -552,7 +584,7 @@
 
       if (femaleHints.some(h => n.includes(h))) return 'F';
       if (maleHints.some(h => n.includes(h))) return 'M';
-      return 'U'; // Unknown
+      return 'U';
     }
 
     function parseFlexibleDate(dateStr) {
@@ -596,7 +628,6 @@
       const byId = {};
       familyData.forEach(p => { byId[p.id] = p; });
 
-      // Build bidirectional adjacency graph: 'P' (to parent), 'C' (to child), 'S' (to spouse)
       const adj = {};
       familyData.forEach(p => { adj[p.id] = []; });
 
@@ -608,12 +639,8 @@
           }
         });
         if (p.spouse && byId[p.spouse]) {
-          if (!adj[p.id].some(e => e.to === p.spouse)) {
-            adj[p.id].push({ to: p.spouse, step: 'S' });
-          }
-          if (!adj[p.spouse].some(e => e.to === p.id)) {
-            adj[p.spouse].push({ to: p.id, step: 'S' });
-          }
+          if (!adj[p.id].some(e => e.to === p.spouse)) adj[p.id].push({ to: p.spouse, step: 'S' });
+          if (!adj[p.spouse].some(e => e.to === p.id)) adj[p.spouse].push({ to: p.id, step: 'S' });
         }
       });
 
@@ -635,85 +662,60 @@
     }
 
     function describeTamilKinship(caller, target, path) {
-      if (!path) {
-        return {
-          title: "Extended Relative (உறவினர்)",
-          detail: "Connected in the extended family"
-        };
-      }
-      if (path.length === 0) {
-        return { title: "Self (தானே)", detail: "Same person" };
-      }
+      if (!path) return { title: "Extended Relative (உறவினர்)", detail: "Connected in the extended family" };
+      if (path.length === 0) return { title: "Self (தானே)", detail: "Same person" };
 
       const steps = path.map(e => e.step).join('');
       const targetGender = inferGender(target);
       const isMale = targetGender === 'M';
       const isFemale = targetGender === 'F';
 
-      // Calculate net generation difference (positive = target is older generation, negative = target is younger)
       let genDiff = 0;
       path.forEach(e => {
         if (e.step === 'P') genDiff += 1;
         if (e.step === 'C') genDiff -= 1;
       });
 
-      // Exact common patterns (Caller -> Target)
       if (steps === 'S') {
-        return isMale
-          ? { title: "Kanavar (Husband) — கணவர்", detail: "Spouse" }
-          : isFemale
-            ? { title: "Manaivi (Wife) — மனைவி", detail: "Spouse" }
-            : { title: "Thunai (Spouse) — துணை", detail: "Spouse" };
+        return isMale ? { title: "Kanavar (Husband) — கணவர்", detail: "Spouse" }
+          : isFemale ? { title: "Manaivi (Wife) — மனைவி", detail: "Spouse" }
+          : { title: "Thunai (Spouse) — துணை", detail: "Spouse" };
       }
       if (steps === 'P') {
-        return isMale
-          ? { title: "Appa (Father) — அப்பா", detail: "Parent" }
-          : isFemale
-            ? { title: "Amma (Mother) — அம்மா", detail: "Parent" }
-            : { title: "Petror (Parent) — பெற்றோர்", detail: "Parent" };
+        return isMale ? { title: "Appa (Father) — அப்பா", detail: "Parent" }
+          : isFemale ? { title: "Amma (Mother) — அம்மா", detail: "Parent" }
+          : { title: "Petror (Parent) — பெற்றோர்", detail: "Parent" };
       }
       if (steps === 'C') {
-        return isMale
-          ? { title: "Magan (Son) — மகன்", detail: "Child" }
-          : isFemale
-            ? { title: "Magal (Daughter) — மகள்", detail: "Child" }
-            : { title: "Kuzhandhai (Child) — குழந்தை", detail: "Child" };
+        return isMale ? { title: "Magan (Son) — மகன்", detail: "Child" }
+          : isFemale ? { title: "Magal (Daughter) — மகள்", detail: "Child" }
+          : { title: "Kuzhandhai (Child) — குழந்தை", detail: "Child" };
       }
       if (steps === 'PC') {
-        return isMale
-          ? { title: "Anna / Thambi (Brother) — அண்ணன் / தம்பி", detail: "Sibling" }
-          : isFemale
-            ? { title: "Akka / Thangai (Sister) — அக்கா / தங்கை", detail: "Sibling" }
-            : { title: "Sagodharar (Sibling) — சகோதரர்", detail: "Sibling" };
+        return isMale ? { title: "Anna / Thambi (Brother) — அண்ணன் / தம்பி", detail: "Sibling" }
+          : isFemale ? { title: "Akka / Thangai (Sister) — அக்கா / தங்கை", detail: "Sibling" }
+          : { title: "Sagodharar (Sibling) — சகோதரர்", detail: "Sibling" };
       }
       if (steps === 'PP' || steps === 'PPS') {
-        return isMale
-          ? { title: "Thatha (Grandpa) — தாத்தா", detail: "Grandfather" }
-          : isFemale
-            ? { title: "Paatti (Grandma) — பாட்டி", detail: "Grandmother" }
-            : { title: "Thatha / Paatti (Grandparent) — தாத்தா / பாட்டி", detail: "Grandparent" };
+        return isMale ? { title: "Thatha (Grandpa) — தாத்தா", detail: "Grandfather" }
+          : isFemale ? { title: "Paatti (Grandma) — பாட்டி", detail: "Grandmother" }
+          : { title: "Thatha / Paatti (Grandparent) — தாத்தா / பாட்டி", detail: "Grandparent" };
       }
       if (steps === 'CC' || steps === 'SCC') {
-        return isMale
-          ? { title: "Peran (Grandson) — பேரன்", detail: "Grandchild" }
-          : isFemale
-            ? { title: "Pethi (Granddaughter) — பேத்தி", detail: "Grandchild" }
-            : { title: "Peran / Pethi (Grandchild) — பேரன் / பேத்தி", detail: "Grandchild" };
+        return isMale ? { title: "Peran (Grandson) — பேரன்", detail: "Grandchild" }
+          : isFemale ? { title: "Pethi (Granddaughter) — பேத்தி", detail: "Grandchild" }
+          : { title: "Peran / Pethi (Grandchild) — பேரன் / பேத்தி", detail: "Grandchild" };
       }
 
-      // Parent's Sibling or Parent's Sibling's Spouse (1 generation up)
       if (steps === 'PPC' || steps === 'PPCS') {
-        // Check if through Father or Mother
         const firstParent = familyData.find(x => x.id === path[0].to);
         const parentGender = firstParent ? inferGender(firstParent) : 'U';
 
         if (parentGender === 'M') {
-          // Father's side
           return isMale
             ? { title: "Periyappa / Chithappa (Uncle) — பெரியப்பா / சித்தப்பா", detail: "Paternal Uncle" }
             : { title: "Athai / Periyamma / Chithi (Aunt) — அத்தை / பெரியம்மா / சித்தி", detail: "Paternal Aunt" };
         } else if (parentGender === 'F') {
-          // Mother's side
           return isMale
             ? { title: "Mama (Uncle) — மாமா", detail: "Maternal Uncle" }
             : { title: "Periyamma / Chithi / Athai (Aunt) — பெரியம்மா / சித்தி / அத்தை", detail: "Maternal Aunt" };
@@ -723,74 +725,55 @@
           : { title: "Athai / Periyamma / Chithi (Aunt) — அத்தை / பெரியம்மா / சித்தி", detail: "Aunt" };
       }
 
-      // Sibling's Child (Nephew / Niece)
       if (steps === 'PCC' || steps === 'SPCC') {
-        return isMale
-          ? { title: "Marumagan (Nephew) — மருமகன்", detail: "Nephew" }
-          : isFemale
-            ? { title: "Marumagal (Niece) — மருமகள்", detail: "Niece" }
-            : { title: "Marumagan / Marumagal (Nephew / Niece) — மருமகன் / மருமகள்", detail: "Nephew / Niece" };
+        return isMale ? { title: "Marumagan (Nephew) — மருமகன்", detail: "Nephew" }
+          : isFemale ? { title: "Marumagal (Niece) — மருமகள்", detail: "Niece" }
+          : { title: "Marumagan / Marumagal (Nephew / Niece) — மருமகன் / மருமகள்", detail: "Nephew / Niece" };
       }
 
-      // In-Laws (Spouse's Parent / Child's Spouse / Sibling's Spouse)
       if (steps === 'SP') {
-        return isMale
-          ? { title: "Mamanar (Father-in-law) — மாமனார்", detail: "Father-in-law" }
+        return isMale ? { title: "Mamanar (Father-in-law) — மாமனார்", detail: "Father-in-law" }
           : { title: "Mamiyar (Mother-in-law) — மாமியார்", detail: "Mother-in-law" };
       }
       if (steps === 'CS') {
-        return isMale
-          ? { title: "Marumagan (Son-in-law) — மருமகன்", detail: "Son-in-law" }
+        return isMale ? { title: "Marumagan (Son-in-law) — மருமகன்", detail: "Son-in-law" }
           : { title: "Marumagal (Daughter-in-law) — மருமகள்", detail: "Daughter-in-law" };
       }
       if (steps === 'PCS' || steps === 'SPC') {
-        return isMale
-          ? { title: "Machan / Maithunar (Brother-in-law) — மச்சான் / மைத்துனர்", detail: "Brother-in-law" }
+        return isMale ? { title: "Machan / Maithunar (Brother-in-law) — மச்சான் / மைத்துனர்", detail: "Brother-in-law" }
           : { title: "Anni / Naathanaar (Sister-in-law) — அண்ணி / நாத்தனார்", detail: "Sister-in-law" };
       }
 
-      // Extended Multi-Generation Relations (e.g., Harshith -> Rangaraj = PPPC / PPPCS)
       if (genDiff === 2) {
-        return isMale
-          ? { title: "Thatha (Grandpa / Grand-Uncle) — தாத்தா", detail: "Grand-Uncle (2 generations elder)" }
-          : isFemale
-            ? { title: "Paatti (Grandma / Grand-Aunt) — பாட்டி", detail: "Grand-Aunt (2 generations elder)" }
-            : { title: "Thatha / Paatti (Grand-Relative) — தாத்தா / பாட்டி", detail: "2 generations elder" };
+        return isMale ? { title: "Thatha (Grandpa / Grand-Uncle) — தாத்தா", detail: "Grand-Uncle (2 generations elder)" }
+          : isFemale ? { title: "Paatti (Grandma / Grand-Aunt) — பாட்டி", detail: "Grand-Aunt (2 generations elder)" }
+          : { title: "Thatha / Paatti (Grand-Relative) — தாத்தா / பாட்டி", detail: "2 generations elder" };
       }
       if (genDiff === -2) {
-        return isMale
-          ? { title: "Peran (Grandson / Grand-Nephew) — பேரன்", detail: "Grand-Nephew (2 generations younger)" }
-          : isFemale
-            ? { title: "Pethi (Granddaughter / Grand-Niece) — பேத்தி", detail: "Grand-Niece (2 generations younger)" }
-            : { title: "Peran / Pethi (Grandchild) — பேரன் / பேத்தி", detail: "2 generations younger" };
+        return isMale ? { title: "Peran (Grandson / Grand-Nephew) — பேரன்", detail: "Grand-Nephew (2 generations younger)" }
+          : isFemale ? { title: "Pethi (Granddaughter / Grand-Niece) — பேத்தி", detail: "Grand-Niece (2 generations younger)" }
+          : { title: "Peran / Pethi (Grandchild) — பேரன் / பேத்தி", detail: "2 generations younger" };
       }
       if (genDiff >= 3) {
-        return isMale
-          ? { title: "Kollu Thatha (Great-Grandpa) — கொள்ளுத் தாத்தா", detail: `${genDiff} generations elder` }
+        return isMale ? { title: "Kollu Thatha (Great-Grandpa) — கொள்ளுத் தாத்தா", detail: `${genDiff} generations elder` }
           : { title: "Kollu Paatti (Great-Grandma) — கொள்ளுப் பாட்டி", detail: `${genDiff} generations elder` };
       }
       if (genDiff <= -3) {
-        return isMale
-          ? { title: "Kollu Peran (Great-Grandson) — கொள்ளுப் பேரன்", detail: `${Math.abs(genDiff)} generations younger` }
+        return isMale ? { title: "Kollu Peran (Great-Grandson) — கொள்ளுப் பேரன்", detail: `${Math.abs(genDiff)} generations younger` }
           : { title: "Kollu Pethi (Great-Granddaughter) — கொள்ளுப் பேத்தி", detail: `${Math.abs(genDiff)} generations younger` };
       }
       if (genDiff === 1) {
-        return isMale
-          ? { title: "Periyappa / Chithappa / Mama (Uncle) — பெரியப்பா / சித்தப்பா / மாமா", detail: "Elder Uncle (1 generation up)" }
+        return isMale ? { title: "Periyappa / Chithappa / Mama (Uncle) — பெரியப்பா / சித்தப்பா / மாமா", detail: "Elder Uncle (1 generation up)" }
           : { title: "Periyamma / Chithi / Athai (Aunt) — பெரியம்மா / சித்தி / அத்தை", detail: "Elder Aunt (1 generation up)" };
       }
       if (genDiff === -1) {
-        return isMale
-          ? { title: "Marumagan / Magan (Nephew) — மருமகன் / மகன்", detail: "1 generation younger" }
+        return isMale ? { title: "Marumagan / Magan (Nephew) — மருமகன் / மகன்", detail: "1 generation younger" }
           : { title: "Marumagal / Magal (Niece) — மருமகள் / மகள்", detail: "1 generation younger" };
       }
 
-      // Same generation (Cousins / Extended Siblings)
-      return isMale
-        ? { title: "Anna / Thambi (Cousin Brother) — அண்ணன் / தம்பி", detail: "Same generation cousin" }
-        : isFemale
-          ? { title: "Akka / Thangai (Cousin Sister) — அக்கா / தங்கை", detail: "Same generation cousin" }
-          : { title: "Cousin (உறவினர்) — அண்ணன் / தம்பி / அக்கா / தங்கை", detail: "Same generation cousin" };
+      return isMale ? { title: "Anna / Thambi (Cousin Brother) — அண்ணன் / தம்பி", detail: "Same generation cousin" }
+        : isFemale ? { title: "Akka / Thangai (Cousin Sister) — அக்கா / தங்கை", detail: "Same generation cousin" }
+        : { title: "Cousin (உறவினர்) — அண்ணன் / தம்பி / அக்கா / தங்கை", detail: "Same generation cousin" };
     }
 
     function computeKinship() {
@@ -803,41 +786,74 @@
       if (!a || !b) return;
 
       if (aId === bId) {
-        res.innerHTML = `<p class="text-xs font-bold text-indigo-900">Same Person (தானே)</p>`;
+        res.innerHTML = `<div class="bg-white p-3.5 rounded-2xl border border-black/[0.05] text-center text-xs font-bold text-[#1D1D1F]">Same Person (தானே)</div>`;
         return;
       }
 
       const aNames = getDisplayNames(a);
       const bNames = getDisplayNames(b);
 
-      const pathBtoA = findRelationshipPath(b.id, a.id); // How B calls A
-      const pathAtoB = findRelationshipPath(a.id, b.id); // How A calls B
-
-      const bCallsA = describeTamilKinship(b, a, pathBtoA);
-      const aCallsB = describeTamilKinship(a, b, pathAtoB);
+      const bCallsA = describeTamilKinship(b, a, findRelationshipPath(b.id, a.id));
+      const aCallsB = describeTamilKinship(a, b, findRelationshipPath(a.id, b.id));
 
       res.innerHTML = `
-        <div class="bg-white p-3 rounded-xl border border-indigo-100 shadow-sm text-left">
-          <div class="text-[11px] text-slate-500">
-            <strong class="text-slate-800">${bNames.eng}</strong> calls <strong class="text-slate-800">${aNames.eng}</strong>:
+        <div class="bg-white p-3.5 rounded-2xl border border-black/[0.05] shadow-sm text-left">
+          <div class="text-[11px] text-[#86868B]">
+            <strong class="text-[#1D1D1F]">${bNames.eng}</strong> calls <strong class="text-[#1D1D1F]">${aNames.eng}</strong>
           </div>
-          <div class="text-sm font-bold text-indigo-700 mt-0.5">${bCallsA.title}</div>
-          <div class="text-[10px] text-slate-400 mt-0.5">${bCallsA.detail}</div>
+          <div class="text-sm font-bold text-[#007AFF] mt-0.5">${bCallsA.title}</div>
+          <div class="text-[10px] text-[#86868B] mt-0.5">${bCallsA.detail}</div>
         </div>
 
-        <div class="bg-white p-3 rounded-xl border border-indigo-100 shadow-sm text-left">
-          <div class="text-[11px] text-slate-500">
-            <strong class="text-slate-800">${aNames.eng}</strong> calls <strong class="text-slate-800">${bNames.eng}</strong>:
+        <div class="bg-white p-3.5 rounded-2xl border border-black/[0.05] shadow-sm text-left">
+          <div class="text-[11px] text-[#86868B]">
+            <strong class="text-[#1D1D1F]">${aNames.eng}</strong> calls <strong class="text-[#1D1D1F]">${bNames.eng}</strong>
           </div>
-          <div class="text-sm font-bold text-emerald-700 mt-0.5">${aCallsB.title}</div>
-          <div class="text-[10px] text-slate-400 mt-0.5">${aCallsB.detail}</div>
+          <div class="text-sm font-bold text-[#34C759] mt-0.5">${aCallsB.title}</div>
+          <div class="text-[10px] text-[#86868B] mt-0.5">${aCallsB.detail}</div>
         </div>
       `;
     }
 
     // -----------------------------------------------------------------
-    // 5. GENERATION LEVEL & SUBTREE-CENTERED TREE ENGINE
+    // 5. SYMMETRICAL DYNAMIC TILE DIMENSIONS & TREE LAYOUT ENGINE
     // -----------------------------------------------------------------
+    function getPersonTileSize(person) {
+      const { eng, tam } = getDisplayNames(person);
+      const hasTamil = treeSettings.showTamil && tam !== '';
+      const hasRelation = treeSettings.showRelation && person.relation && person.relation.trim() !== '';
+      const dateStr = getPersonDates(person);
+      const hasAge = treeSettings.showAge && dateStr !== '';
+      const hasBio = treeSettings.showBio && person.bio && person.bio.trim() !== '';
+
+      // Measure longest visible text line
+      let maxTextW = measureTextPx(eng, '700 12px -apple-system, BlinkMacSystemFont, sans-serif');
+      if (hasTamil) {
+        maxTextW = Math.max(maxTextW, measureTextPx(tam, '500 11px -apple-system, BlinkMacSystemFont, sans-serif'));
+      }
+      if (hasRelation) {
+        maxTextW = Math.max(maxTextW, measureTextPx(person.relation, '500 10px -apple-system, BlinkMacSystemFont, sans-serif'));
+      }
+      if (hasAge) {
+        maxTextW = Math.max(maxTextW, measureTextPx(dateStr, '400 9px -apple-system, BlinkMacSystemFont, sans-serif'));
+      }
+
+      // Symmetrical 10px left padding + 40px avatar + 10px gap + text + 10px right padding (+ Edit button if unlocked)
+      const editBtnW = isAdminUnlocked ? 36 : 0;
+      const rawW = 10 + 40 + 10 + maxTextW + editBtnW + 10;
+      const width = Math.min(Math.max(rawW, 136), 285);
+
+      // Dynamic compact height based on visible rows
+      let extraLines = 0;
+      if (hasTamil) extraLines++;
+      if (hasRelation) extraLines++;
+      if (hasAge) extraLines++;
+      if (hasBio) extraLines++;
+
+      const height = extraLines === 0 ? 58 : extraLines === 1 ? 68 : extraLines === 2 ? 82 : 94;
+      return { width, height };
+    }
+
     function calculateGenerations() {
       const levels = {};
       const byId = {};
@@ -897,11 +913,18 @@
       container.appendChild(svg);
       svg.innerHTML = '';
 
-      const CARD_W = 220;
-      const CARD_H = (treeSettings.showTamil || treeSettings.showBio) ? 92 : 76;
-      const SPOUSE_GAP = 28;
-      const SIBLING_GAP = 44;
-      const GAP_Y = CARD_H + 64;
+      const SPOUSE_GAP = 26;
+      const SIBLING_GAP = 36;
+
+      // Precompute dynamic tile dimensions per person & max height per generation level
+      const tileSizes = {};
+      let maxCardH = 68;
+      familyData.forEach(p => {
+        const sz = getPersonTileSize(p);
+        tileSizes[p.id] = sz;
+        if (sz.height > maxCardH) maxCardH = sz.height;
+      });
+      const GAP_Y = maxCardH + 58;
 
       const levels = calculateGenerations();
       const positions = {};
@@ -917,6 +940,12 @@
         return [p];
       }
 
+      function getUnitWidth(members) {
+        if (members.length === 0) return 0;
+        const sumW = members.reduce((acc, m) => acc + tileSizes[m.id].width, 0);
+        return sumW + (members.length - 1) * SPOUSE_GAP;
+      }
+
       function getUnitChildren(members) {
         const memberIds = new Set(members.map(m => m.id));
         return familyData.filter(child => 
@@ -929,7 +958,7 @@
         if (members.length === 0 || members.some(m => seen.has(m.id))) return 0;
         members.forEach(m => seen.add(m.id));
 
-        const selfWidth = members.length * CARD_W + (members.length - 1) * SPOUSE_GAP;
+        const selfWidth = getUnitWidth(members);
         const children = getUnitChildren(members);
         if (children.length === 0) return selfWidth;
 
@@ -954,14 +983,25 @@
         members.forEach(m => visitedUnits.add(m.id));
 
         const subtreeWidth = measureSubtree(personId, new Set());
-        const selfWidth = members.length * CARD_W + (members.length - 1) * SPOUSE_GAP;
-        const unitStartX = leftX + (subtreeWidth - selfWidth) / 2;
+        const selfWidth = getUnitWidth(members);
+        let currentX = leftX + (subtreeWidth - selfWidth) / 2;
         const lvl = levels[members[0].id] || 0;
-        const y = lvl * GAP_Y + 60;
+        const rowCenterY = lvl * GAP_Y + 60 + maxCardH / 2;
 
-        members.forEach((m, idx) => {
-          const x = unitStartX + idx * (CARD_W + SPOUSE_GAP);
-          positions[m.id] = { x, y, cx: x + CARD_W / 2, cy: y + CARD_H / 2, bottom: y + CARD_H, top: y };
+        members.forEach((m) => {
+          const { width: w, height: h } = tileSizes[m.id];
+          const y = rowCenterY - h / 2;
+          positions[m.id] = {
+            x: currentX,
+            y,
+            width: w,
+            height: h,
+            cx: currentX + w / 2,
+            cy: rowCenterY,
+            bottom: y + h,
+            top: y
+          };
+          currentX += w + SPOUSE_GAP;
         });
 
         const children = getUnitChildren(members);
@@ -1001,23 +1041,25 @@
         if (!visitedUnits.has(root.id)) {
           const w = measureSubtree(root.id, new Set());
           placeSubtree(root.id, cursorX);
-          cursorX += w + 90;
+          cursorX += w + 80;
         }
       });
 
       familyData.forEach(p => {
         if (!positions[p.id]) {
           const lvl = levels[p.id] || 0;
-          const y = lvl * GAP_Y + 60;
-          positions[p.id] = { x: cursorX, y, cx: cursorX + CARD_W / 2, cy: y + CARD_H / 2, bottom: y + CARD_H, top: y };
-          cursorX += CARD_W + SIBLING_GAP;
+          const { width: w, height: h } = tileSizes[p.id];
+          const rowCenterY = lvl * GAP_Y + 60 + maxCardH / 2;
+          const y = rowCenterY - h / 2;
+          positions[p.id] = { x: cursorX, y, width: w, height: h, cx: cursorX + w / 2, cy: rowCenterY, bottom: y + h, top: y };
+          cursorX += w + SIBLING_GAP;
         }
       });
 
       let maxX = 1200, maxY = 800;
       Object.values(positions).forEach(pos => {
-        if (pos.x + CARD_W + 250 > maxX) maxX = pos.x + CARD_W + 250;
-        if (pos.y + CARD_H + 250 > maxY) maxY = pos.y + CARD_H + 250;
+        if (pos.x + pos.width + 250 > maxX) maxX = pos.x + pos.width + 250;
+        if (pos.y + pos.height + 250 > maxY) maxY = pos.y + pos.height + 250;
       });
       container.style.width = `${maxX}px`;
       container.style.height = `${maxY}px`;
@@ -1031,32 +1073,46 @@
         const pos = positions[p.id];
         if (!pos) return;
 
+        // Spouse connector touching exact right border of left card to exact left border of right card
         if (p.spouse && positions[p.spouse] && !handledSpouses.has(p.id)) {
           const spPos = positions[p.spouse];
-          const x1 = Math.min(pos.cx, spPos.cx) + CARD_W / 2;
-          const x2 = Math.max(pos.cx, spPos.cx) - CARD_W / 2;
-          svgHtml += `<line x1="${x1}" y1="${pos.cy}" x2="${x2}" y2="${pos.cy}" stroke="#6366f1" stroke-width="2" stroke-dasharray="4" />`;
+          const leftCard = pos.cx < spPos.cx ? pos : spPos;
+          const rightCard = pos.cx < spPos.cx ? spPos : pos;
+          const x1 = leftCard.x + leftCard.width;
+          const x2 = rightCard.x;
+          svgHtml += `<line x1="${x1}" y1="${pos.cy}" x2="${x2}" y2="${pos.cy}" stroke="#007AFF" stroke-width="2" stroke-dasharray="4,3" />`;
           handledSpouses.add(p.id);
           handledSpouses.add(p.spouse);
         }
 
+        // Parent-to-child connector: starts directly from the spouse connector midpoint (touching T-junction)
         if (p.parents && p.parents.length > 0) {
           const validParents = p.parents.map(pid => positions[pid]).filter(Boolean);
           if (validParents.length > 0) {
-            let parentMidX = 0, parentBottomY = 0;
-            validParents.forEach(pt => {
-              parentMidX += pt.cx;
-              parentBottomY = Math.max(parentBottomY, pt.bottom);
-            });
-            parentMidX /= validParents.length;
+            let startX, startY;
+            if (validParents.length >= 2) {
+              const pA = validParents[0];
+              const pB = validParents[1];
+              const leftCard = pA.cx < pB.cx ? pA : pB;
+              const rightCard = pA.cx < pB.cx ? pB : pA;
+              // Exact midpoint of the horizontal spouse line between the two parent tiles!
+              startX = ((leftCard.x + leftCard.width) + rightCard.x) / 2;
+              startY = leftCard.cy;
+            } else {
+              // Single parent: starts directly from the bottom border of that parent tile
+              startX = validParents[0].cx;
+              startY = validParents[0].bottom;
+            }
 
-            const midY = parentBottomY + (pos.top - parentBottomY) / 2;
+            const parentBottomMax = Math.max(...validParents.map(pt => pt.bottom));
+            const branchY = parentBottomMax + (pos.top - parentBottomMax) / 2;
+
             svgHtml += `
-              <path d="M ${parentMidX} ${parentBottomY} 
-                       L ${parentMidX} ${midY} 
-                       L ${pos.cx} ${midY} 
+              <path d="M ${startX} ${startY} 
+                       L ${startX} ${branchY} 
+                       L ${pos.cx} ${branchY} 
                        L ${pos.cx} ${pos.top}" 
-                    fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/>
+                    fill="none" stroke="#AEAEB2" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
             `;
           }
         }
@@ -1072,9 +1128,9 @@
         const isHighlight = bloodlineMode && ancestorSet.has(p.id);
 
         const card = document.createElement('div');
-        card.className = `absolute bg-white rounded-xl shadow-sm border border-slate-200 p-2.5 cursor-pointer transition-all hover:shadow-md hover:border-indigo-300 flex flex-col justify-center ${isDimmed ? 'dimmed' : ''} ${isHighlight ? 'ring-2 ring-indigo-500' : ''}`;
-        card.style.width = `${CARD_W}px`;
-        card.style.height = `${CARD_H}px`;
+        card.className = `absolute apple-card rounded-2xl p-2.5 cursor-pointer flex flex-col justify-center ${isDimmed ? 'dimmed' : ''} ${isHighlight ? 'ring-2 ring-[#007AFF]' : ''}`;
+        card.style.width = `${pos.width}px`;
+        card.style.height = `${pos.height}px`;
         card.style.left = `${pos.x}px`;
         card.style.top = `${pos.y}px`;
         card.style.zIndex = "2";
@@ -1090,46 +1146,46 @@
     }
 
     // -----------------------------------------------------------------
-    // 6. TILE CARD BUILDER (English Name + Separate Tamil Name Below)
+    // 6. TILE CARD BUILDER (Symmetrical 10px Padding + Apple Typography)
     // -----------------------------------------------------------------
     function createMemberCardHtml(person, isFocus = false) {
       const { eng, tam } = getDisplayNames(person);
       const initials = eng.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
       const avatarHtml = person.photo 
-        ? `<img src="${person.photo}" class="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0">`
-        : `<div class="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-xs border border-indigo-200 shrink-0">${initials}</div>`;
+        ? `<img src="${person.photo}" class="w-10 h-10 rounded-full object-cover ring-1 ring-black/10 shrink-0">`
+        : `<div class="w-10 h-10 rounded-full bg-[#007AFF]/10 text-[#007AFF] font-semibold flex items-center justify-center text-xs ring-1 ring-[#007AFF]/20 shrink-0">${initials}</div>`;
 
       const tamilHtml = (treeSettings.showTamil && tam !== '')
-        ? `<p class="text-[11px] font-medium text-slate-600 leading-snug break-words">${tam}</p>`
+        ? `<p class="text-[11px] font-medium text-[#515154] leading-snug whitespace-nowrap">${tam}</p>`
         : '';
 
       const relationHtml = (treeSettings.showRelation && person.relation && person.relation.trim() !== '')
-        ? `<p class="text-[10px] text-indigo-600 font-medium truncate">${person.relation}</p>`
+        ? `<p class="text-[10px] text-[#007AFF] font-semibold truncate">${person.relation}</p>`
         : '';
 
       const dateStr = getPersonDates(person);
       const datesHtml = (treeSettings.showAge && dateStr !== '')
-        ? `<p class="text-[9px] text-slate-400 truncate">${dateStr}</p>`
+        ? `<p class="text-[9.5px] text-[#86868B] truncate">${dateStr}</p>`
         : '';
 
       const hasBio = person.bio && person.bio.trim() !== '';
       const bioHtml = (isFocus && hasBio)
-        ? `<p class="mt-2 text-xs text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100">${person.bio}</p>`
+        ? `<p class="mt-2 text-xs text-[#515154] bg-[#F5F5F7] p-2.5 rounded-xl">${person.bio}</p>`
         : (!isFocus && treeSettings.showBio && hasBio)
-          ? `<p class="text-[9px] text-slate-500 truncate mt-0.5">${person.bio}</p>`
+          ? `<p class="text-[9.5px] text-[#86868B] truncate mt-0.5">${person.bio}</p>`
           : '';
 
       return `
         <div class="flex items-center gap-2.5 w-full">
           ${avatarHtml}
           <div class="min-w-0 flex-1">
-            <h4 class="font-bold text-slate-800 text-xs leading-tight break-words">${eng}</h4>
+            <h4 class="font-semibold text-[#1D1D1F] text-xs leading-tight whitespace-nowrap">${eng}</h4>
             ${tamilHtml}
             ${relationHtml}
             ${datesHtml}
             ${bioHtml}
           </div>
-          ${isAdminUnlocked ? `<button onclick="event.stopPropagation(); openEditModal('${person.id}')" class="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded shrink-0">Edit</button>` : ''}
+          ${isAdminUnlocked ? `<button onclick="event.stopPropagation(); openEditModal('${person.id}')" class="text-[10px] bg-black/[0.06] hover:bg-black/[0.12] text-[#1D1D1F] font-medium px-2 py-0.5 rounded-lg shrink-0">Edit</button>` : ''}
         </div>
       `;
     }
@@ -1165,14 +1221,14 @@
         ancestors.forEach((anc, index) => {
           const isCurrent = anc.id === person.id;
           const item = document.createElement('div');
-          item.className = `w-full bg-white p-2.5 rounded-xl border ${isCurrent ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-slate-200'} shadow-sm cursor-pointer`;
+          item.className = `w-full apple-card p-2.5 rounded-2xl ${isCurrent ? 'border-2 border-[#007AFF]' : ''} cursor-pointer`;
           item.innerHTML = createMemberCardHtml(anc, false);
           item.onclick = (e) => { if (e.target.tagName !== 'BUTTON') setFocus(anc.id); };
           bloodlineChain.appendChild(item);
 
           if (index < ancestors.length - 1) {
             const arrow = document.createElement('div');
-            arrow.className = "text-indigo-400 text-xs font-bold leading-none";
+            arrow.className = "text-[#007AFF] text-xs font-bold leading-none";
             arrow.innerText = "↓";
             bloodlineChain.appendChild(arrow);
           }
@@ -1187,13 +1243,13 @@
       if (parents.length > 0) {
         parents.forEach(p => {
           const div = document.createElement('div');
-          div.className = "bg-white p-3 rounded-xl border border-slate-200 shadow-sm w-44 cursor-pointer active:scale-95 transition-transform";
+          div.className = "apple-card p-2.5 rounded-2xl cursor-pointer active:scale-95 transition-transform";
           div.innerHTML = createMemberCardHtml(p);
           div.onclick = (e) => { if (e.target.tagName !== 'BUTTON') setFocus(p.id); };
           pContainer.appendChild(div);
         });
       } else {
-        pContainer.innerHTML = `<span class="text-xs text-slate-400 italic">No parents recorded</span>`;
+        pContainer.innerHTML = `<span class="text-xs text-[#86868B]">No parents recorded</span>`;
       }
 
       const spContainer = document.getElementById('focusSpouse');
@@ -1201,12 +1257,12 @@
       const spouse = familyData.find(p => p.id === person.spouse);
       if (spouse) {
         const div = document.createElement('div');
-        div.className = "bg-white p-3 rounded-xl border border-slate-200 shadow-sm w-48 cursor-pointer active:scale-95 transition-transform";
+        div.className = "apple-card p-2.5 rounded-2xl cursor-pointer active:scale-95 transition-transform";
         div.innerHTML = createMemberCardHtml(spouse);
         div.onclick = (e) => { if (e.target.tagName !== 'BUTTON') setFocus(spouse.id); };
         spContainer.appendChild(div);
       } else {
-        spContainer.innerHTML = `<span class="text-xs text-slate-400 italic">No spouse linked</span>`;
+        spContainer.innerHTML = `<span class="text-xs text-[#86868B]">No spouse linked</span>`;
       }
 
       const chContainer = document.getElementById('focusChildren');
@@ -1215,13 +1271,13 @@
       if (children.length > 0) {
         children.forEach(c => {
           const div = document.createElement('div');
-          div.className = "bg-white p-3 rounded-xl border border-slate-200 shadow-sm w-44 cursor-pointer active:scale-95 transition-transform";
+          div.className = "apple-card p-2.5 rounded-2xl cursor-pointer active:scale-95 transition-transform";
           div.innerHTML = createMemberCardHtml(c);
           div.onclick = (e) => { if (e.target.tagName !== 'BUTTON') setFocus(c.id); };
           chContainer.appendChild(div);
         });
       } else {
-        chContainer.innerHTML = `<span class="text-xs text-slate-400 italic">No children recorded</span>`;
+        chContainer.innerHTML = `<span class="text-xs text-[#86868B]">No children recorded</span>`;
       }
     }
 
@@ -1268,9 +1324,9 @@
       const ticker = document.getElementById('birthdayTickerText');
       if (upcoming.length > 0) {
         const item = upcoming[0];
-        ticker.innerHTML = `<span>🎂 <strong>${item.name}</strong> turns ${item.age} in <strong>${item.days === 0 ? 'Today!' : item.days + ' days'}</strong></span>`;
+        ticker.innerHTML = `<span>🎂 <strong class="text-[#1D1D1F]">${item.name}</strong> turns ${item.age} in <strong class="text-[#007AFF]">${item.days === 0 ? 'Today!' : item.days + ' days'}</strong></span>`;
       } else {
-        ticker.innerHTML = `<span>🌿 No birthdays in the next ${windowDays} days. Everything is up to date!</span>`;
+        ticker.innerHTML = `<span>🌿 No birthdays in the next ${windowDays} days</span>`;
       }
     }
 
@@ -1284,8 +1340,8 @@
       const { eng, tam } = getDisplayNames(p);
       const initials = eng.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
       const avatarHtml = p.photo 
-        ? `<img src="${p.photo}" class="w-16 h-16 rounded-full object-cover border-2 border-indigo-200 mx-auto">`
-        : `<div class="w-16 h-16 rounded-full bg-indigo-100 text-indigo-700 font-bold text-lg flex items-center justify-center border-2 border-indigo-200 mx-auto">${initials}</div>`;
+        ? `<img src="${p.photo}" class="w-16 h-16 rounded-full object-cover ring-2 ring-[#007AFF]/20 mx-auto shadow-sm">`
+        : `<div class="w-16 h-16 rounded-full bg-[#007AFF]/10 text-[#007AFF] font-bold text-lg flex items-center justify-center ring-2 ring-[#007AFF]/20 mx-auto">${initials}</div>`;
 
       const parents = familyData.filter(x => (p.parents || []).includes(x.id));
       const spouse = familyData.find(x => x.id === p.spouse);
@@ -1295,25 +1351,25 @@
       const content = `
         <div class="text-center">
           ${avatarHtml}
-          <h3 class="text-base font-bold text-slate-800 mt-2">${eng}</h3>
-          ${tam ? `<p class="text-sm font-medium text-slate-600">${tam}</p>` : ''}
-          ${p.relation ? `<p class="text-xs text-indigo-600 font-semibold mt-0.5">${p.relation}</p>` : ''}
-          ${dateText ? `<p class="text-xs text-slate-400 mt-0.5">${dateText}</p>` : ''}
+          <h3 class="text-base font-bold text-[#1D1D1F] mt-2.5">${eng}</h3>
+          ${tam ? `<p class="text-sm font-medium text-[#515154]">${tam}</p>` : ''}
+          ${p.relation ? `<p class="text-xs text-[#007AFF] font-semibold mt-0.5">${p.relation}</p>` : ''}
+          ${dateText ? `<p class="text-xs text-[#86868B] mt-0.5">${dateText}</p>` : ''}
         </div>
 
-        ${p.bio ? `<div class="bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs text-slate-600 leading-relaxed">${p.bio}</div>` : ''}
+        ${p.bio ? `<div class="bg-[#F5F5F7] p-3 rounded-2xl text-xs text-[#515154] leading-relaxed">${p.bio}</div>` : ''}
 
-        <div class="text-xs space-y-1.5 pt-1 border-t border-slate-100">
-          <div><strong class="text-slate-500">Parents:</strong> ${parents.length > 0 ? parents.map(pt => `<span class="text-indigo-600 cursor-pointer font-medium hover:underline" onclick="openPersonDetailsModal('${pt.id}')">${getDisplayNames(pt).eng}</span>`).join(', ') : '<span class="text-slate-400 italic">None recorded</span>'}</div>
-          <div><strong class="text-slate-500">Spouse:</strong> ${spouse ? `<span class="text-indigo-600 cursor-pointer font-medium hover:underline" onclick="openPersonDetailsModal('${spouse.id}')">${getDisplayNames(spouse).eng}</span>` : '<span class="text-slate-400 italic">None</span>'}</div>
-          <div><strong class="text-slate-500">Children:</strong> ${children.length > 0 ? children.map(c => `<span class="text-indigo-600 cursor-pointer font-medium hover:underline" onclick="openPersonDetailsModal('${c.id}')">${getDisplayNames(c).eng}</span>`).join(', ') : '<span class="text-slate-400 italic">None recorded</span>'}</div>
+        <div class="bg-[#F5F5F7] rounded-2xl p-3 text-xs space-y-2">
+          <div class="flex justify-between gap-2"><span class="text-[#86868B] font-medium">Parents</span><span class="text-right">${parents.length > 0 ? parents.map(pt => `<span class="text-[#007AFF] cursor-pointer font-semibold hover:underline" onclick="openPersonDetailsModal('${pt.id}')">${getDisplayNames(pt).eng}</span>`).join(', ') : '<span class="text-[#86868B]">None</span>'}</span></div>
+          <div class="flex justify-between gap-2"><span class="text-[#86868B] font-medium">Spouse</span><span class="text-right">${spouse ? `<span class="text-[#007AFF] cursor-pointer font-semibold hover:underline" onclick="openPersonDetailsModal('${spouse.id}')">${getDisplayNames(spouse).eng}</span>` : '<span class="text-[#86868B]">None</span>'}</span></div>
+          <div class="flex justify-between gap-2"><span class="text-[#86868B] font-medium">Children</span><span class="text-right">${children.length > 0 ? children.map(c => `<span class="text-[#007AFF] cursor-pointer font-semibold hover:underline" onclick="openPersonDetailsModal('${c.id}')">${getDisplayNames(c).eng}</span>`).join(', ') : '<span class="text-[#86868B]">None</span>'}</span></div>
         </div>
 
-        <div class="flex gap-2 pt-2">
-          <button onclick="setFocus('${p.id}'); switchView('focus'); document.getElementById('personDetailsModal').classList.add('hidden');" class="flex-1 bg-indigo-50 text-indigo-700 py-2 rounded-lg text-xs font-semibold hover:bg-indigo-100 transition-colors">
-            Focus on Mobile View
+        <div class="flex gap-2 pt-1">
+          <button onclick="setFocus('${p.id}'); switchView('focus'); document.getElementById('personDetailsModal').classList.add('hidden');" class="flex-1 bg-[#007AFF] text-white py-2.5 rounded-2xl text-xs font-semibold hover:bg-[#0066D6] transition-colors">
+            Open in Mobile View
           </button>
-          ${isAdminUnlocked ? `<button onclick="document.getElementById('personDetailsModal').classList.add('hidden'); openEditModal('${p.id}');" class="px-3 bg-slate-100 text-slate-700 py-2 rounded-lg text-xs font-semibold hover:bg-slate-200">Edit</button>` : ''}
+          ${isAdminUnlocked ? `<button onclick="document.getElementById('personDetailsModal').classList.add('hidden'); openEditModal('${p.id}');" class="px-4 bg-[#F5F5F7] text-[#1D1D1F] py-2.5 rounded-2xl text-xs font-semibold hover:bg-black/[0.08]">Edit</button>` : ''}
         </div>
       `;
 
@@ -1434,14 +1490,14 @@
           return eng.toLowerCase().includes(q) || tam.toLowerCase().includes(q);
         });
         if (matches.length === 0) {
-          searchResults.innerHTML = `<div class="p-2 text-xs text-slate-400 text-center">No match found</div>`;
+          searchResults.innerHTML = `<div class="p-3 text-xs text-[#86868B] text-center">No match found</div>`;
         } else {
           searchResults.innerHTML = matches.map(m => {
             const { eng, tam } = getDisplayNames(m);
             return `
-              <div class="px-3 py-2 hover:bg-slate-100 cursor-pointer border-b border-slate-50 last:border-0" onclick="setFocus('${m.id}'); openPersonDetailsModal('${m.id}'); document.getElementById('searchResults').classList.add('hidden'); document.getElementById('searchInput').value='';">
-                <div class="text-xs font-bold text-slate-700">${eng}</div>
-                ${tam ? `<div class="text-[11px] text-slate-500">${tam}</div>` : ''}
+              <div class="px-3.5 py-2.5 hover:bg-black/[0.04] cursor-pointer" onclick="setFocus('${m.id}'); openPersonDetailsModal('${m.id}'); document.getElementById('searchResults').classList.add('hidden'); document.getElementById('searchInput').value='';">
+                <div class="text-xs font-semibold text-[#1D1D1F]">${eng}</div>
+                ${tam ? `<div class="text-[11px] text-[#86868B]">${tam}</div>` : ''}
               </div>
             `;
           }).join('');
@@ -1456,14 +1512,6 @@
       document.getElementById('btnCloseKinship').onclick = () => document.getElementById('kinshipModal').classList.add('hidden');
       document.getElementById('kinPersonA').onchange = computeKinship;
       document.getElementById('kinPersonB').onchange = computeKinship;
-      document.getElementById('btnSwapKinship').onclick = () => {
-        const a = document.getElementById('kinPersonA');
-        const b = document.getElementById('kinPersonB');
-        const tmp = a.value;
-        a.value = b.value;
-        b.value = tmp;
-        computeKinship();
-      };
 
       document.getElementById('btnHighlightLineage').onclick = () => {
         bloodlineMode = !bloodlineMode;
@@ -1475,7 +1523,7 @@
       document.getElementById('btnExportPoster').onclick = async () => {
         const btn = document.getElementById('btnExportPoster');
         const origText = btn.innerText;
-        btn.innerText = "⏳ Generating...";
+        btn.innerText = "Saving...";
         btn.disabled = true;
 
         try {
@@ -1489,7 +1537,7 @@
             clone.style.position = 'fixed';
             clone.style.left = '-99999px';
             clone.style.top = '0';
-            clone.style.backgroundColor = '#f8fafc';
+            clone.style.backgroundColor = '#F5F5F7';
             document.body.appendChild(clone);
             targetEl = clone;
             cleanupClone = () => document.body.removeChild(clone);
@@ -1498,7 +1546,7 @@
           }
 
           const canvas = await html2canvas(targetEl, {
-            backgroundColor: '#f8fafc',
+            backgroundColor: '#F5F5F7',
             scale: 2,
             useCORS: true,
             logging: false
@@ -1742,13 +1790,13 @@
       if (mode === 'focus') {
         document.getElementById('focusView').classList.remove('hidden');
         document.getElementById('canvasView').classList.add('hidden');
-        document.getElementById('btnViewFocus').className = "px-2 py-1 rounded bg-white shadow-sm text-indigo-700 font-semibold";
-        document.getElementById('btnViewCanvas').className = "px-2 py-1 rounded text-slate-600";
+        document.getElementById('btnViewFocus').className = "px-2.5 py-1 rounded-[8px] bg-white shadow-sm text-[#1D1D1F] font-semibold transition-all";
+        document.getElementById('btnViewCanvas').className = "px-2.5 py-1 rounded-[8px] text-[#86868B] transition-all";
       } else {
         document.getElementById('focusView').classList.add('hidden');
         document.getElementById('canvasView').classList.remove('hidden');
-        document.getElementById('btnViewCanvas').className = "px-2 py-1 rounded bg-white shadow-sm text-indigo-700 font-semibold";
-        document.getElementById('btnViewFocus').className = "px-2 py-1 rounded text-slate-600";
+        document.getElementById('btnViewCanvas').className = "px-2.5 py-1 rounded-[8px] bg-white shadow-sm text-[#1D1D1F] font-semibold transition-all";
+        document.getElementById('btnViewFocus').className = "px-2.5 py-1 rounded-[8px] text-[#86868B] transition-all";
         renderCanvasView();
       }
     }
@@ -1766,12 +1814,12 @@
         const isModified = Math.abs(panX) > 1 || Math.abs(panY) > 1 || Math.abs(scale - 1) > 0.01;
         if (isModified) {
           resetBtn.disabled = false;
-          resetBtn.classList.remove('opacity-40', 'cursor-not-allowed');
-          resetBtn.classList.add('active:bg-slate-100', 'hover:bg-slate-50', 'text-indigo-700');
+          resetBtn.classList.remove('opacity-35', 'cursor-not-allowed');
+          resetBtn.classList.add('hover:bg-black/[0.04]', 'active:bg-black/[0.08]', 'text-[#007AFF]');
         } else {
           resetBtn.disabled = true;
-          resetBtn.classList.add('opacity-40', 'cursor-not-allowed');
-          resetBtn.classList.remove('active:bg-slate-100', 'hover:bg-slate-50', 'text-indigo-700');
+          resetBtn.classList.add('opacity-35', 'cursor-not-allowed');
+          resetBtn.classList.remove('hover:bg-black/[0.04]', 'active:bg-black/[0.08]', 'text-[#007AFF]');
         }
       }
 
