@@ -816,8 +816,28 @@
     }
 
     // -----------------------------------------------------------------
-    // 5. SYMMETRICAL DYNAMIC TILE DIMENSIONS & SMOOTH CURVED TREE ENGINE
+    // 5. ROUNDED-CORNER ORTHOGONAL PATH BUILDER & SYMMETRICAL TILES
     // -----------------------------------------------------------------
+    function buildRoundedOrthogonalPath(startX, startY, branchY, endX, endY, radius = 10) {
+      const dx = endX - startX;
+      // If child is directly below parent midpoint, draw straight vertical line
+      if (Math.abs(dx) < 1) {
+        return `M ${startX} ${startY} L ${endX} ${endY}`;
+      }
+      // Clamp radius so tight horizontal offsets never distort the arc
+      const r = Math.min(radius, Math.abs(dx) / 2, Math.abs(branchY - startY) / 2, Math.abs(endY - branchY) / 2);
+      const dirX = dx > 0 ? 1 : -1;
+
+      return [
+        `M ${startX} ${startY}`,
+        `L ${startX} ${branchY - r}`,
+        `Q ${startX} ${branchY}, ${startX + dirX * r} ${branchY}`,
+        `L ${endX - dirX * r} ${branchY}`,
+        `Q ${endX} ${branchY}, ${endX} ${branchY + r}`,
+        `L ${endX} ${endY}`
+      ].join(' ');
+    }
+
     function getPersonTileSize(person) {
       const { eng, tam } = getDisplayNames(person);
       const hasTamil = treeSettings.showTamil && tam !== '';
@@ -1082,7 +1102,7 @@
           handledSpouses.add(p.spouse);
         }
 
-        // Smooth Cubic Bezier curve from spouse line midpoint directly to child's top edge (zero sharp corners)
+        // Straight vertical/horizontal orthogonal lines with smooth 10px rounded corners
         if (p.parents && p.parents.length > 0) {
           const validParents = p.parents.map(pid => positions[pid]).filter(Boolean);
           if (validParents.length > 0) {
@@ -1099,19 +1119,11 @@
               startY = validParents[0].bottom;
             }
 
-            const endX = pos.cx;
-            const endY = pos.top;
-            const deltaY = endY - startY;
-            const cp1Y = startY + deltaY * 0.55;
-            const cp2Y = endY - deltaY * 0.45;
+            const parentBottomMax = Math.max(...validParents.map(pt => pt.bottom));
+            const branchY = parentBottomMax + (pos.top - parentBottomMax) / 2;
+            const pathD = buildRoundedOrthogonalPath(startX, startY, branchY, pos.cx, pos.top, 10);
 
-            svgHtml += `
-              <path d="M ${startX} ${startY} 
-                       C ${startX} ${cp1Y}, 
-                         ${endX} ${cp2Y}, 
-                         ${endX} ${endY}" 
-                    fill="none" stroke="#AEAEB2" stroke-width="1.8" stroke-linecap="round" />
-            `;
+            svgHtml += `<path d="${pathD}" fill="none" stroke="#AEAEB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />`;
           }
         }
       });
