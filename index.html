@@ -224,23 +224,33 @@
     </div>
   </div>
 
-  <!-- Modal: Kinship Calculator -->
+  <!-- Modal: Bilingual Tamil + English Kinship Calculator -->
   <div id="kinshipModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl space-y-4">
-      <div class="flex justify-between items-center">
-        <h3 class="text-sm font-bold text-slate-800">Kinship Calculator</h3>
+    <div class="bg-white w-full max-w-md rounded-2xl p-5 shadow-2xl space-y-4">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-2.5">
+        <h3 class="text-sm font-bold text-slate-800 flex items-center gap-1.5"><span>🔗</span> Kinship Calculator (உறவு முறை)</h3>
         <button id="btnCloseKinship" class="text-slate-400 hover:text-slate-600 font-bold text-lg">&times;</button>
       </div>
-      <div>
-        <label class="block text-xs font-semibold text-slate-600 mb-1">Person A</label>
-        <select id="kinPersonA" class="w-full px-3 py-2 border rounded-lg text-xs"></select>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Person A</label>
+          <select id="kinPersonA" class="w-full px-3 py-2 border rounded-lg text-xs bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none"></select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Person B</label>
+          <select id="kinPersonB" class="w-full px-3 py-2 border rounded-lg text-xs bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none"></select>
+        </div>
       </div>
-      <div>
-        <label class="block text-xs font-semibold text-slate-600 mb-1">Person B</label>
-        <select id="kinPersonB" class="w-full px-3 py-2 border rounded-lg text-xs"></select>
+
+      <div class="flex justify-center">
+        <button id="btnSwapKinship" class="text-[11px] text-indigo-600 font-semibold hover:underline flex items-center gap-1">
+          ⇅ Swap Person A & B
+        </button>
       </div>
-      <div id="kinshipResult" class="p-3 bg-indigo-50 border border-indigo-100 rounded-xl text-center text-xs text-indigo-900 font-semibold min-h-[44px] flex items-center justify-center">
-        Select two relatives to calculate relationship
+
+      <div id="kinshipResult" class="p-4 bg-indigo-50/90 border border-indigo-200 rounded-2xl text-center space-y-2.5">
+        <p class="text-xs text-indigo-900 font-semibold">Select two relatives to see how they address each other</p>
       </div>
     </div>
   </div>
@@ -307,13 +317,21 @@
           </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-2">
+        <div class="grid grid-cols-3 gap-2">
           <div>
-            <label class="block font-semibold text-slate-600 mb-1">Exact Birthday</label>
+            <label class="block font-semibold text-slate-600 mb-1">Gender</label>
+            <select id="selGender" class="w-full px-2 py-2 border rounded-lg outline-none">
+              <option value="">Auto</option>
+              <option value="M">Male</option>
+              <option value="F">Female</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">Birthday</label>
             <input type="date" id="inpBirthday" class="w-full px-2 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
           </div>
           <div>
-            <label class="block font-semibold text-slate-600 mb-1">Passed Date (optional)</label>
+            <label class="block font-semibold text-slate-600 mb-1">Passed Date</label>
             <input type="date" id="inpDeathDate" class="w-full px-2 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
           </div>
         </div>
@@ -390,8 +408,8 @@
     };
 
     let familyData = [
-      { id: '1', name: 'Kariyappa Gowder', tamilName: 'கரியப்ப கவுடர்', birthday: null, deathDate: null, photo: '', relation: 'Grandfather', bio: '', parents: [], spouse: '2' },
-      { id: '2', name: 'Marammal', tamilName: 'மரம்மாள்', birthday: null, deathDate: null, photo: '', relation: 'Grandmother', bio: '', parents: [], spouse: '1' }
+      { id: '1', name: 'Kariyappa Gowder', tamilName: 'கரியப்ப கவுடர்', gender: 'M', birthday: null, deathDate: null, photo: '', relation: 'Grandfather', bio: '', parents: [], spouse: '2' },
+      { id: '2', name: 'Marammal', tamilName: 'மரம்மாள்', gender: 'F', birthday: null, deathDate: null, photo: '', relation: 'Grandmother', bio: '', parents: [], spouse: '1' }
     ];
 
     let currentFocusId = '1';
@@ -507,12 +525,11 @@
     }
 
     // -----------------------------------------------------------------
-    // 3. NAME SPLITTING & DATE PARSING HELPERS
+    // 3. NAME, GENDER INFERENCE & DATE PARSING HELPERS
     // -----------------------------------------------------------------
     function getDisplayNames(person) {
       let eng = (person.name || '').trim();
       let tam = (person.tamilName || '').trim();
-      // Auto-extract if old format "English Name (தமிழ் பெயர்)" exists in database
       if (!tam) {
         const match = eng.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
         if (match && /[\u0B80-\u0BFF]/.test(match[2])) {
@@ -521,6 +538,21 @@
         }
       }
       return { eng, tam };
+    }
+
+    function inferGender(person) {
+      if (person.gender === 'M' || person.gender === 'F') return person.gender;
+      const rel = (person.relation || '').toLowerCase();
+      if (/\b(grandfather|father|son|brother|husband|uncle|grandson)\b/.test(rel)) return 'M';
+      if (/\b(grandmother|mother|daughter|sister|wife|aunt|granddaughter)\b/.test(rel)) return 'F';
+
+      const n = getDisplayNames(person).eng.toLowerCase();
+      const femaleHints = ['ammal', 'marammal', 'rajamani', 'pappammal', 'santhamani', 'kalaivani', 'rani', 'vasantha', 'latha', 'suganthi', 'neha', 'saranya', 'deepa', 'revathi', 'vasuki', 'samyuktha', 'diya', 'mounika', 'pradeepa', 'sri', 'devi', 'priya', 'kavitha', 'anitha', 'lakshmi'];
+      const maleHints = ['gowder', 'thimmiyan', 'durairaj', 'rangaraj', 'hariharan', 'rajendran', 'balraj', 'elango', 'akshay', 'vishnuvardhan', 'vignesh', 'suresh', 'kishore', 'prabhu', 'jothinathan', 'mohan', 'prathap', 'harshith', 'kumar', 'raj', 'nathan', 'thambi'];
+
+      if (femaleHints.some(h => n.includes(h))) return 'F';
+      if (maleHints.some(h => n.includes(h))) return 'M';
+      return 'U'; // Unknown
     }
 
     function parseFlexibleDate(dateStr) {
@@ -557,7 +589,254 @@
     }
 
     // -----------------------------------------------------------------
-    // 4. GENERATION LEVEL & SUBTREE-CENTERED TREE ENGINE
+    // 4. TAMIL + ENGLISH KINSHIP GRAPH ENGINE
+    // -----------------------------------------------------------------
+    function findRelationshipPath(startId, targetId) {
+      if (startId === targetId) return [];
+      const byId = {};
+      familyData.forEach(p => { byId[p.id] = p; });
+
+      // Build bidirectional adjacency graph: 'P' (to parent), 'C' (to child), 'S' (to spouse)
+      const adj = {};
+      familyData.forEach(p => { adj[p.id] = []; });
+
+      familyData.forEach(p => {
+        (p.parents || []).forEach(pid => {
+          if (byId[pid]) {
+            adj[p.id].push({ to: pid, step: 'P' });
+            adj[pid].push({ to: p.id, step: 'C' });
+          }
+        });
+        if (p.spouse && byId[p.spouse]) {
+          if (!adj[p.id].some(e => e.to === p.spouse)) {
+            adj[p.id].push({ to: p.spouse, step: 'S' });
+          }
+          if (!adj[p.spouse].some(e => e.to === p.id)) {
+            adj[p.spouse].push({ to: p.id, step: 'S' });
+          }
+        }
+      });
+
+      const queue = [{ id: startId, path: [] }];
+      const visited = new Set([startId]);
+
+      while (queue.length > 0) {
+        const curr = queue.shift();
+        if (curr.id === targetId) return curr.path;
+
+        for (const edge of (adj[curr.id] || [])) {
+          if (!visited.has(edge.to)) {
+            visited.add(edge.to);
+            queue.push({ id: edge.to, path: [...curr.path, edge] });
+          }
+        }
+      }
+      return null;
+    }
+
+    function describeTamilKinship(caller, target, path) {
+      if (!path) {
+        return {
+          title: "Extended Relative (உறவினர்)",
+          detail: "Connected in the extended family"
+        };
+      }
+      if (path.length === 0) {
+        return { title: "Self (தானே)", detail: "Same person" };
+      }
+
+      const steps = path.map(e => e.step).join('');
+      const targetGender = inferGender(target);
+      const isMale = targetGender === 'M';
+      const isFemale = targetGender === 'F';
+
+      // Calculate net generation difference (positive = target is older generation, negative = target is younger)
+      let genDiff = 0;
+      path.forEach(e => {
+        if (e.step === 'P') genDiff += 1;
+        if (e.step === 'C') genDiff -= 1;
+      });
+
+      // Exact common patterns (Caller -> Target)
+      if (steps === 'S') {
+        return isMale
+          ? { title: "Kanavar (Husband) — கணவர்", detail: "Spouse" }
+          : isFemale
+            ? { title: "Manaivi (Wife) — மனைவி", detail: "Spouse" }
+            : { title: "Thunai (Spouse) — துணை", detail: "Spouse" };
+      }
+      if (steps === 'P') {
+        return isMale
+          ? { title: "Appa (Father) — அப்பா", detail: "Parent" }
+          : isFemale
+            ? { title: "Amma (Mother) — அம்மா", detail: "Parent" }
+            : { title: "Petror (Parent) — பெற்றோர்", detail: "Parent" };
+      }
+      if (steps === 'C') {
+        return isMale
+          ? { title: "Magan (Son) — மகன்", detail: "Child" }
+          : isFemale
+            ? { title: "Magal (Daughter) — மகள்", detail: "Child" }
+            : { title: "Kuzhandhai (Child) — குழந்தை", detail: "Child" };
+      }
+      if (steps === 'PC') {
+        return isMale
+          ? { title: "Anna / Thambi (Brother) — அண்ணன் / தம்பி", detail: "Sibling" }
+          : isFemale
+            ? { title: "Akka / Thangai (Sister) — அக்கா / தங்கை", detail: "Sibling" }
+            : { title: "Sagodharar (Sibling) — சகோதரர்", detail: "Sibling" };
+      }
+      if (steps === 'PP' || steps === 'PPS') {
+        return isMale
+          ? { title: "Thatha (Grandpa) — தாத்தா", detail: "Grandfather" }
+          : isFemale
+            ? { title: "Paatti (Grandma) — பாட்டி", detail: "Grandmother" }
+            : { title: "Thatha / Paatti (Grandparent) — தாத்தா / பாட்டி", detail: "Grandparent" };
+      }
+      if (steps === 'CC' || steps === 'SCC') {
+        return isMale
+          ? { title: "Peran (Grandson) — பேரன்", detail: "Grandchild" }
+          : isFemale
+            ? { title: "Pethi (Granddaughter) — பேத்தி", detail: "Grandchild" }
+            : { title: "Peran / Pethi (Grandchild) — பேரன் / பேத்தி", detail: "Grandchild" };
+      }
+
+      // Parent's Sibling or Parent's Sibling's Spouse (1 generation up)
+      if (steps === 'PPC' || steps === 'PPCS') {
+        // Check if through Father or Mother
+        const firstParent = familyData.find(x => x.id === path[0].to);
+        const parentGender = firstParent ? inferGender(firstParent) : 'U';
+
+        if (parentGender === 'M') {
+          // Father's side
+          return isMale
+            ? { title: "Periyappa / Chithappa (Uncle) — பெரியப்பா / சித்தப்பா", detail: "Paternal Uncle" }
+            : { title: "Athai / Periyamma / Chithi (Aunt) — அத்தை / பெரியம்மா / சித்தி", detail: "Paternal Aunt" };
+        } else if (parentGender === 'F') {
+          // Mother's side
+          return isMale
+            ? { title: "Mama (Uncle) — மாமா", detail: "Maternal Uncle" }
+            : { title: "Periyamma / Chithi / Athai (Aunt) — பெரியம்மா / சித்தி / அத்தை", detail: "Maternal Aunt" };
+        }
+        return isMale
+          ? { title: "Periyappa / Chithappa / Mama (Uncle) — பெரியப்பா / சித்தப்பா / மாமா", detail: "Uncle" }
+          : { title: "Athai / Periyamma / Chithi (Aunt) — அத்தை / பெரியம்மா / சித்தி", detail: "Aunt" };
+      }
+
+      // Sibling's Child (Nephew / Niece)
+      if (steps === 'PCC' || steps === 'SPCC') {
+        return isMale
+          ? { title: "Marumagan (Nephew) — மருமகன்", detail: "Nephew" }
+          : isFemale
+            ? { title: "Marumagal (Niece) — மருமகள்", detail: "Niece" }
+            : { title: "Marumagan / Marumagal (Nephew / Niece) — மருமகன் / மருமகள்", detail: "Nephew / Niece" };
+      }
+
+      // In-Laws (Spouse's Parent / Child's Spouse / Sibling's Spouse)
+      if (steps === 'SP') {
+        return isMale
+          ? { title: "Mamanar (Father-in-law) — மாமனார்", detail: "Father-in-law" }
+          : { title: "Mamiyar (Mother-in-law) — மாமியார்", detail: "Mother-in-law" };
+      }
+      if (steps === 'CS') {
+        return isMale
+          ? { title: "Marumagan (Son-in-law) — மருமகன்", detail: "Son-in-law" }
+          : { title: "Marumagal (Daughter-in-law) — மருமகள்", detail: "Daughter-in-law" };
+      }
+      if (steps === 'PCS' || steps === 'SPC') {
+        return isMale
+          ? { title: "Machan / Maithunar (Brother-in-law) — மச்சான் / மைத்துனர்", detail: "Brother-in-law" }
+          : { title: "Anni / Naathanaar (Sister-in-law) — அண்ணி / நாத்தனார்", detail: "Sister-in-law" };
+      }
+
+      // Extended Multi-Generation Relations (e.g., Harshith -> Rangaraj = PPPC / PPPCS)
+      if (genDiff === 2) {
+        return isMale
+          ? { title: "Thatha (Grandpa / Grand-Uncle) — தாத்தா", detail: "Grand-Uncle (2 generations elder)" }
+          : isFemale
+            ? { title: "Paatti (Grandma / Grand-Aunt) — பாட்டி", detail: "Grand-Aunt (2 generations elder)" }
+            : { title: "Thatha / Paatti (Grand-Relative) — தாத்தா / பாட்டி", detail: "2 generations elder" };
+      }
+      if (genDiff === -2) {
+        return isMale
+          ? { title: "Peran (Grandson / Grand-Nephew) — பேரன்", detail: "Grand-Nephew (2 generations younger)" }
+          : isFemale
+            ? { title: "Pethi (Granddaughter / Grand-Niece) — பேத்தி", detail: "Grand-Niece (2 generations younger)" }
+            : { title: "Peran / Pethi (Grandchild) — பேரன் / பேத்தி", detail: "2 generations younger" };
+      }
+      if (genDiff >= 3) {
+        return isMale
+          ? { title: "Kollu Thatha (Great-Grandpa) — கொள்ளுத் தாத்தா", detail: `${genDiff} generations elder` }
+          : { title: "Kollu Paatti (Great-Grandma) — கொள்ளுப் பாட்டி", detail: `${genDiff} generations elder` };
+      }
+      if (genDiff <= -3) {
+        return isMale
+          ? { title: "Kollu Peran (Great-Grandson) — கொள்ளுப் பேரன்", detail: `${Math.abs(genDiff)} generations younger` }
+          : { title: "Kollu Pethi (Great-Granddaughter) — கொள்ளுப் பேத்தி", detail: `${Math.abs(genDiff)} generations younger` };
+      }
+      if (genDiff === 1) {
+        return isMale
+          ? { title: "Periyappa / Chithappa / Mama (Uncle) — பெரியப்பா / சித்தப்பா / மாமா", detail: "Elder Uncle (1 generation up)" }
+          : { title: "Periyamma / Chithi / Athai (Aunt) — பெரியம்மா / சித்தி / அத்தை", detail: "Elder Aunt (1 generation up)" };
+      }
+      if (genDiff === -1) {
+        return isMale
+          ? { title: "Marumagan / Magan (Nephew) — மருமகன் / மகன்", detail: "1 generation younger" }
+          : { title: "Marumagal / Magal (Niece) — மருமகள் / மகள்", detail: "1 generation younger" };
+      }
+
+      // Same generation (Cousins / Extended Siblings)
+      return isMale
+        ? { title: "Anna / Thambi (Cousin Brother) — அண்ணன் / தம்பி", detail: "Same generation cousin" }
+        : isFemale
+          ? { title: "Akka / Thangai (Cousin Sister) — அக்கா / தங்கை", detail: "Same generation cousin" }
+          : { title: "Cousin (உறவினர்) — அண்ணன் / தம்பி / அக்கா / தங்கை", detail: "Same generation cousin" };
+    }
+
+    function computeKinship() {
+      const aId = document.getElementById('kinPersonA').value;
+      const bId = document.getElementById('kinPersonB').value;
+      const res = document.getElementById('kinshipResult');
+
+      const a = familyData.find(p => p.id === aId);
+      const b = familyData.find(p => p.id === bId);
+      if (!a || !b) return;
+
+      if (aId === bId) {
+        res.innerHTML = `<p class="text-xs font-bold text-indigo-900">Same Person (தானே)</p>`;
+        return;
+      }
+
+      const aNames = getDisplayNames(a);
+      const bNames = getDisplayNames(b);
+
+      const pathBtoA = findRelationshipPath(b.id, a.id); // How B calls A
+      const pathAtoB = findRelationshipPath(a.id, b.id); // How A calls B
+
+      const bCallsA = describeTamilKinship(b, a, pathBtoA);
+      const aCallsB = describeTamilKinship(a, b, pathAtoB);
+
+      res.innerHTML = `
+        <div class="bg-white p-3 rounded-xl border border-indigo-100 shadow-sm text-left">
+          <div class="text-[11px] text-slate-500">
+            <strong class="text-slate-800">${bNames.eng}</strong> calls <strong class="text-slate-800">${aNames.eng}</strong>:
+          </div>
+          <div class="text-sm font-bold text-indigo-700 mt-0.5">${bCallsA.title}</div>
+          <div class="text-[10px] text-slate-400 mt-0.5">${bCallsA.detail}</div>
+        </div>
+
+        <div class="bg-white p-3 rounded-xl border border-indigo-100 shadow-sm text-left">
+          <div class="text-[11px] text-slate-500">
+            <strong class="text-slate-800">${aNames.eng}</strong> calls <strong class="text-slate-800">${bNames.eng}</strong>:
+          </div>
+          <div class="text-sm font-bold text-emerald-700 mt-0.5">${aCallsB.title}</div>
+          <div class="text-[10px] text-slate-400 mt-0.5">${aCallsB.detail}</div>
+        </div>
+      `;
+    }
+
+    // -----------------------------------------------------------------
+    // 5. GENERATION LEVEL & SUBTREE-CENTERED TREE ENGINE
     // -----------------------------------------------------------------
     function calculateGenerations() {
       const levels = {};
@@ -811,7 +1090,7 @@
     }
 
     // -----------------------------------------------------------------
-    // 5. TILE CARD BUILDER (English Name + Separate Tamil Name Below)
+    // 6. TILE CARD BUILDER (English Name + Separate Tamil Name Below)
     // -----------------------------------------------------------------
     function createMemberCardHtml(person, isFocus = false) {
       const { eng, tam } = getDisplayNames(person);
@@ -820,7 +1099,6 @@
         ? `<img src="${person.photo}" class="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0">`
         : `<div class="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-xs border border-indigo-200 shrink-0">${initials}</div>`;
 
-      // Tamil name rendered directly underneath English name when enabled & present
       const tamilHtml = (treeSettings.showTamil && tam !== '')
         ? `<p class="text-[11px] font-medium text-slate-600 leading-snug break-words">${tam}</p>`
         : '';
@@ -997,7 +1275,7 @@
     }
 
     // -----------------------------------------------------------------
-    // 6. PERSON DETAILS POPUP MODAL
+    // 7. PERSON DETAILS POPUP MODAL
     // -----------------------------------------------------------------
     window.openPersonDetailsModal = function(id) {
       const p = familyData.find(item => item.id === id);
@@ -1044,7 +1322,7 @@
     };
 
     // -----------------------------------------------------------------
-    // 7. CSV PARSER (Handles BOM, Tamil UTF-8, & Photo as Last Column)
+    // 8. CSV PARSER
     // -----------------------------------------------------------------
     function parseCsvToObjects(csvText) {
       const cleanText = csvText.replace(/^\uFEFF/, '');
@@ -1085,7 +1363,6 @@
           if (obj.parent1) parents.push(String(obj.parent1));
           if (obj.parent2 && obj.parent2 !== obj.parent1) parents.push(String(obj.parent2));
 
-          // Auto-split if tamilName column is empty but name has "(தமிழ்)"
           let engName = obj.name;
           let tamName = obj.tamilName || '';
           if (!tamName) {
@@ -1100,6 +1377,7 @@
             id: String(obj.id),
             name: engName,
             tamilName: tamName,
+            gender: (obj.gender || '').toUpperCase(),
             birthday: obj.birthday || null,
             deathDate: obj.deathDate || null,
             relation: obj.relation || '',
@@ -1114,7 +1392,7 @@
     }
 
     // -----------------------------------------------------------------
-    // 8. EVENTS & CONTROLLERS
+    // 9. EVENTS & CONTROLLERS
     // -----------------------------------------------------------------
     function setupEvents() {
       document.getElementById('btnCloseDetails').onclick = () => {
@@ -1146,7 +1424,6 @@
         document.getElementById('settingsModal').classList.add('hidden');
       };
 
-      // Bilingual Search (English + Tamil)
       const searchInput = document.getElementById('searchInput');
       const searchResults = document.getElementById('searchResults');
       searchInput.addEventListener('input', () => {
@@ -1179,6 +1456,14 @@
       document.getElementById('btnCloseKinship').onclick = () => document.getElementById('kinshipModal').classList.add('hidden');
       document.getElementById('kinPersonA').onchange = computeKinship;
       document.getElementById('kinPersonB').onchange = computeKinship;
+      document.getElementById('btnSwapKinship').onclick = () => {
+        const a = document.getElementById('kinPersonA');
+        const b = document.getElementById('kinPersonB');
+        const tmp = a.value;
+        a.value = b.value;
+        b.value = tmp;
+        computeKinship();
+      };
 
       document.getElementById('btnHighlightLineage').onclick = () => {
         bloodlineMode = !bloodlineMode;
@@ -1274,7 +1559,6 @@
         document.getElementById('csvModal').classList.add('hidden');
       };
 
-      // Download Blank CSV Template (With photo as the last column)
       document.getElementById('btnDownloadTemplate').onclick = () => {
         const csvHeader = "\uFEFFid,name,tamilName,birthday,deathDate,relation,bio,parent1,parent2,spouse,photo\n";
         const sampleRow1 = '1,Kariyappa Gowder,கரியப்ப கவுடர்,,,Grandfather,,,,2,\n';
@@ -1367,6 +1651,7 @@
           id: id || Date.now().toString(),
           name: document.getElementById('inpName').value.trim(),
           tamilName: document.getElementById('inpTamilName').value.trim(),
+          gender: document.getElementById('selGender').value,
           birthday: document.getElementById('inpBirthday').value || null,
           deathDate: document.getElementById('inpDeathDate').value || null,
           photo: document.getElementById('inpPhotoData').value || '',
@@ -1403,36 +1688,6 @@
       document.getElementById('btnViewCanvas').onclick = () => switchView('canvas');
     }
 
-    function computeKinship() {
-      const aId = document.getElementById('kinPersonA').value;
-      const bId = document.getElementById('kinPersonB').value;
-      const res = document.getElementById('kinshipResult');
-      if (aId === bId) { res.innerText = "Same person"; return; }
-
-      const a = familyData.find(p => p.id === aId);
-      const b = familyData.find(p => p.id === bId);
-      if (!a || !b) return;
-
-      const aName = getDisplayNames(a).eng;
-      const bName = getDisplayNames(b).eng;
-
-      if ((b.parents || []).includes(a.id)) { res.innerText = `${aName} is the Parent of ${bName}`; return; }
-      if ((a.parents || []).includes(b.id)) { res.innerText = `${aName} is the Child of ${bName}`; return; }
-      if (a.spouse === b.id) { res.innerText = `${aName} and ${bName} are Spouses`; return; }
-
-      const aParents = a.parents || [];
-      const bParents = b.parents || [];
-      const sharedParents = aParents.filter(p => bParents.includes(p));
-      if (sharedParents.length > 0) { res.innerText = `${aName} and ${bName} are Siblings`; return; }
-
-      for (let pId of bParents) {
-        const p = familyData.find(x => x.id === pId);
-        if (p && (p.parents || []).includes(a.id)) { res.innerText = `${aName} is the Grandparent of ${bName}`; return; }
-      }
-
-      res.innerText = `Connected relatives in the same extended lineage`;
-    }
-
     function populateDropdowns() {
       const p1 = document.getElementById('selParent1');
       const p2 = document.getElementById('selParent2');
@@ -1460,6 +1715,7 @@
         document.getElementById('editPersonId').value = p.id;
         document.getElementById('inpName').value = eng;
         document.getElementById('inpTamilName').value = tam;
+        document.getElementById('selGender').value = p.gender || '';
         document.getElementById('inpBirthday').value = p.birthday || '';
         document.getElementById('inpDeathDate').value = p.deathDate || '';
         document.getElementById('inpBio').value = p.bio || '';
@@ -1498,7 +1754,7 @@
     }
 
     // -----------------------------------------------------------------
-    // 9. PAN/ZOOM & CONDITIONAL RESET BUTTON
+    // 10. PAN/ZOOM & CONDITIONAL RESET BUTTON
     // -----------------------------------------------------------------
     let panX = 0, panY = 0, scale = 1;
     function setupPanZoom() {
