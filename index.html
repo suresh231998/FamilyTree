@@ -91,6 +91,15 @@
     <!-- VIEW 1: Mobile-First Focus Navigator -->
     <div id="focusView" class="w-full h-full overflow-y-auto p-4 flex flex-col items-center max-w-lg mx-auto pb-28">
       <div class="w-full space-y-5">
+
+        <!-- Multi-Generation Bloodline Chain (Visible when Trace Bloodline is active on Mobile) -->
+        <div id="focusBloodlineContainer" class="hidden bg-indigo-50/80 border border-indigo-200 rounded-2xl p-3 space-y-2">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xs font-bold text-indigo-700 uppercase tracking-wider">Direct Bloodline (Oldest → Current)</h2>
+            <button onclick="document.getElementById('btnHighlightLineage').click()" class="text-[11px] text-indigo-600 font-semibold underline">Close</button>
+          </div>
+          <div id="focusBloodlineChain" class="flex flex-col items-center space-y-1.5"></div>
+        </div>
         
         <!-- Parents -->
         <div>
@@ -151,7 +160,6 @@
         <p class="text-[11px] text-slate-500">Choose what appears on tree tiles. Empty fields are automatically hidden.</p>
         
         <div class="space-y-2 bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs">
-          <!-- Mandatory Fields -->
           <div class="flex items-center justify-between opacity-60">
             <span class="font-semibold text-slate-700">Full Name</span>
             <span class="text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded font-semibold">Mandatory</span>
@@ -163,7 +171,6 @@
 
           <hr class="border-slate-200 my-1">
 
-          <!-- Configurable Toggles -->
           <label class="flex items-center justify-between cursor-pointer py-1">
             <span class="font-medium text-slate-700">Relation Title (e.g. Father)</span>
             <input type="checkbox" id="cfgShowRelation" class="w-4 h-4 accent-indigo-600 rounded">
@@ -374,15 +381,11 @@
     };
 
     let familyData = [
-      { id: '1', name: 'Robert Vance', birthday: '1948-06-12', deathDate: '2019-11-04', photo: '', relation: 'Grandfather', bio: 'Served in the civil engineering corps, loved woodworking and gardening.', parents: [], spouse: '2' },
-      { id: '2', name: 'Margaret Vance', birthday: '1952-03-24', deathDate: null, photo: '', relation: 'Grandmother', bio: 'Beloved school teacher for 32 years and matriarch of our Sunday dinners.', parents: [], spouse: '1' },
-      { id: '3', name: 'David Vance', birthday: '1974-11-15', deathDate: null, photo: '', relation: 'Father', bio: 'Software architect, photography enthusiast, marathon runner.', parents: ['1', '2'], spouse: '4' },
-      { id: '4', name: 'Sarah Jenkins', birthday: '1977-08-09', deathDate: null, photo: '', relation: 'Mother', bio: 'Pediatric doctor and classical pianist.', parents: [], spouse: '3' },
-      { id: '5', name: 'Lucas Vance', birthday: '2002-12-05', deathDate: null, photo: '', relation: 'Son', bio: 'Studying graphic design and environmental sciences.', parents: ['3', '4'], spouse: null },
-      { id: '6', name: 'Chloe Vance', birthday: '2006-04-18', deathDate: null, photo: '', relation: 'Daughter', bio: 'High school volleyball team captain.', parents: ['3', '4'], spouse: null }
+      { id: '1', name: 'Kariyappa Gowder (கரியப்ப கவுடர்)', birthday: null, deathDate: null, photo: '', relation: 'Grandfather', bio: '', parents: [], spouse: '2' },
+      { id: '2', name: 'Marammal (மரம்மாள்)', birthday: null, deathDate: null, photo: '', relation: 'Grandmother', bio: '', parents: [], spouse: '1' }
     ];
 
-    let currentFocusId = '3';
+    let currentFocusId = '1';
     let firebaseDb = null;
     let bloodlineMode = false;
     let parsedCsvResult = null;
@@ -436,6 +439,9 @@
             const val = snap.val();
             if (val && Array.isArray(val) && val.length > 0) {
               familyData = val;
+              if (!familyData.some(p => p.id === currentFocusId)) {
+                currentFocusId = familyData[0].id;
+              }
               renderAll();
             } else {
               firebaseDb.ref('familyTree').set(familyData);
@@ -850,6 +856,39 @@
       window.history.replaceState(null, null, `#person=${person.id}`);
       document.getElementById('focusCurrentCard').innerHTML = createMemberCardHtml(person, true);
 
+      // Multi-generation Bloodline Chain inside Mobile View
+      const bloodlineBox = document.getElementById('focusBloodlineContainer');
+      const bloodlineChain = document.getElementById('focusBloodlineChain');
+      if (bloodlineMode) {
+        bloodlineBox.classList.remove('hidden');
+        bloodlineChain.innerHTML = '';
+
+        const levels = calculateGenerations();
+        const ancestorIds = Array.from(getAncestors(person.id));
+        const ancestors = ancestorIds
+          .map(id => familyData.find(x => x.id === id))
+          .filter(Boolean)
+          .sort((a, b) => (levels[a.id] || 0) - (levels[b.id] || 0));
+
+        ancestors.forEach((anc, index) => {
+          const isCurrent = anc.id === person.id;
+          const item = document.createElement('div');
+          item.className = `w-full bg-white p-2.5 rounded-xl border ${isCurrent ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-slate-200'} shadow-sm cursor-pointer`;
+          item.innerHTML = createMemberCardHtml(anc, false);
+          item.onclick = (e) => { if (e.target.tagName !== 'BUTTON') setFocus(anc.id); };
+          bloodlineChain.appendChild(item);
+
+          if (index < ancestors.length - 1) {
+            const arrow = document.createElement('div');
+            arrow.className = "text-indigo-400 text-xs font-bold leading-none";
+            arrow.innerText = "↓";
+            bloodlineChain.appendChild(arrow);
+          }
+        });
+      } else {
+        bloodlineBox.classList.add('hidden');
+      }
+
       // Parents
       const pContainer = document.getElementById('focusParents');
       pContainer.innerHTML = '';
@@ -1108,12 +1147,12 @@
       document.getElementById('kinPersonA').onchange = computeKinship;
       document.getElementById('kinPersonB').onchange = computeKinship;
 
-      // Lineage Bloodline Toggle
+      // Lineage Bloodline Toggle (Stays in current view — works cleanly in both Mobile & Canvas)
       document.getElementById('btnHighlightLineage').onclick = () => {
         bloodlineMode = !bloodlineMode;
         document.getElementById('btnHighlightLineage').innerText = bloodlineMode ? "Clear Bloodline" : "Trace Bloodline";
+        renderFocusView();
         renderCanvasView();
-        if (bloodlineMode) switchView('canvas');
       };
 
       // Fixed High-Res Poster Export
