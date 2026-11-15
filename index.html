@@ -146,7 +146,7 @@
     </div>
   </main>
 
-  <!-- Modal: Admin Settings (Tile Fields & Tree Options) -->
+  <!-- Modal: Admin Settings -->
   <div id="settingsModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white w-full max-w-md rounded-2xl p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
       <div class="flex justify-between items-center border-b border-slate-100 pb-3">
@@ -154,7 +154,6 @@
         <button id="btnCloseSettings" class="text-slate-400 hover:text-slate-600 font-bold text-lg">&times;</button>
       </div>
 
-      <!-- Section 1: Tile Visibility -->
       <div class="space-y-2.5">
         <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Tile Display Fields</h4>
         <p class="text-[11px] text-slate-500">Choose what appears on tree tiles. Empty fields are automatically hidden.</p>
@@ -186,7 +185,6 @@
         </div>
       </div>
 
-      <!-- Section 2: General Portal Configuration -->
       <div class="space-y-2.5">
         <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Portal Preferences</h4>
         <div class="space-y-3 text-xs">
@@ -214,7 +212,7 @@
     </div>
   </div>
 
-  <!-- Modal: Person Details (Read-only for all visitors) -->
+  <!-- Modal: Person Details -->
   <div id="personDetailsModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl relative space-y-4">
       <button id="btnCloseDetails" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 font-bold text-lg">&times;</button>
@@ -222,7 +220,7 @@
     </div>
   </div>
 
-  <!-- Modal: Relationship / Kinship Calculator -->
+  <!-- Modal: Kinship Calculator -->
   <div id="kinshipModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl space-y-4">
       <div class="flex justify-between items-center">
@@ -283,7 +281,7 @@
     </div>
   </div>
 
-  <!-- Modal: Add / Edit Family Member (Admin Only) -->
+  <!-- Modal: Add / Edit Family Member -->
   <div id="memberModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-end sm:items-center justify-center">
     <div class="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-5 shadow-2xl max-h-[90vh] overflow-y-auto">
       <div class="flex justify-between items-center mb-4">
@@ -357,7 +355,7 @@
 
   <script>
     // -----------------------------------------------------------------
-    // 1. CONFIGURATION & STATE (Pre-configured with your Firebase Keys)
+    // 1. CONFIGURATION & STATE
     // -----------------------------------------------------------------
     const firebaseConfig = {
       apiKey: "AIzaSyCMoi0ecGeFWYJy6qfEGGiGeuW2TFRZVrs",
@@ -395,7 +393,6 @@
     // 2. INITIALIZATION
     // -----------------------------------------------------------------
     function initApp() {
-      // PWA Manifest
       const manifest = {
         name: treeSettings.siteTitle,
         short_name: "FamilyTree",
@@ -411,7 +408,6 @@
       link.href = URL.createObjectURL(blob);
       document.head.appendChild(link);
 
-      // Load local settings & data
       const savedSettings = localStorage.getItem('localTreeSettings');
       if (savedSettings) {
         try { treeSettings = { ...treeSettings, ...JSON.parse(savedSettings) }; } catch(e){}
@@ -422,14 +418,12 @@
         try { familyData = JSON.parse(savedData); } catch(e){}
       }
 
-      // Deep Linking
       const hash = window.location.hash;
       if (hash && hash.includes('person=')) {
         const id = hash.split('person=')[1];
         if (familyData.some(p => p.id === id)) currentFocusId = id;
       }
 
-      // Firebase Connect
       if (firebaseConfig.apiKey && firebaseConfig.databaseURL) {
         try {
           firebase.initializeApp(firebaseConfig);
@@ -502,7 +496,7 @@
     }
 
     // -----------------------------------------------------------------
-    // 3. DATE PARSING HELPERS (Supports YYYY-MM-DD and DD-MM-YYYY)
+    // 3. DATE PARSING HELPERS
     // -----------------------------------------------------------------
     function parseFlexibleDate(dateStr) {
       if (!dateStr) return null;
@@ -538,65 +532,57 @@
     }
 
     // -----------------------------------------------------------------
-    // 4. HIERARCHICAL SUBTREE-CENTERED TREE ENGINE
+    // 4. FIXED GENERATION LEVEL & SUBTREE-CENTERED TREE ENGINE
     // -----------------------------------------------------------------
     function calculateGenerations() {
       const levels = {};
+      const byId = {};
+      familyData.forEach(p => { byId[p.id] = p; });
+
+      // Step 1: Compute depth strictly from ancestors (ignore spouses initially)
+      function getAncestorDepth(id, visited = new Set()) {
+        if (visited.has(id)) return 0;
+        visited.add(id);
+        const p = byId[id];
+        if (!p || !p.parents || p.parents.length === 0) return 0;
+        const validParents = p.parents.filter(pid => byId[pid]);
+        if (validParents.length === 0) return 0;
+        return 1 + Math.max(...validParents.map(pid => getAncestorDepth(pid, visited)));
+      }
+
       familyData.forEach(p => {
-        if (!p.parents || p.parents.length === 0) levels[p.id] = 0;
+        levels[p.id] = getAncestorDepth(p.id);
       });
 
+      // Step 2: Pull spouses who married into the family onto their partner's generation level
       let changed = true;
-      let iterations = 0;
-      while (changed && iterations < 20) {
+      let loops = 0;
+      while (changed && loops < 10) {
         changed = false;
-        iterations++;
+        loops++;
+        familyData.forEach(p => {
+          if (p.spouse && byId[p.spouse]) {
+            const sp = byId[p.spouse];
+            const maxLvl = Math.max(levels[p.id], levels[sp.id]);
+            if (levels[p.id] !== maxLvl) { levels[p.id] = maxLvl; changed = true; }
+            if (levels[sp.id] !== maxLvl) { levels[sp.id] = maxLvl; changed = true; }
+          }
+        });
+
+        // Re-propagate children below aligned parents
         familyData.forEach(p => {
           if (p.parents && p.parents.length > 0) {
-            const validParents = p.parents.filter(pid => levels[pid] !== undefined);
+            const validParents = p.parents.filter(pid => byId[pid]);
             if (validParents.length > 0) {
-              const maxParentLevel = Math.max(...validParents.map(pid => levels[pid]));
-              const newLevel = maxParentLevel + 1;
-              if (levels[p.id] !== newLevel) {
-                levels[p.id] = newLevel;
+              const reqLvl = 1 + Math.max(...validParents.map(pid => levels[pid]));
+              if (levels[p.id] < reqLvl) {
+                levels[p.id] = reqLvl;
                 changed = true;
               }
             }
           }
         });
       }
-
-      changed = true;
-      iterations = 0;
-      while (changed && iterations < 10) {
-        changed = false;
-        iterations++;
-        familyData.forEach(p => {
-          if (p.spouse && levels[p.spouse] !== undefined) {
-            const myLvl = levels[p.id] !== undefined ? levels[p.id] : 0;
-            const spLvl = levels[p.spouse];
-            const pHasParents = p.parents && p.parents.length > 0;
-            const spObj = familyData.find(x => x.id === p.spouse);
-            const spHasParents = spObj && spObj.parents && spObj.parents.length > 0;
-
-            let targetLvl = Math.max(myLvl, spLvl);
-            if (pHasParents && !spHasParents) targetLvl = myLvl;
-            if (spHasParents && !pHasParents) targetLvl = spLvl;
-
-            if (levels[p.id] !== targetLvl) { levels[p.id] = targetLvl; changed = true; }
-            if (levels[p.spouse] !== targetLvl) { levels[p.spouse] = targetLvl; changed = true; }
-          }
-        });
-      }
-
-      familyData.forEach(p => {
-        if (p.parents && p.parents.length > 0) {
-          const validParents = p.parents.filter(pid => levels[pid] !== undefined);
-          if (validParents.length > 0) {
-            levels[p.id] = Math.max(...validParents.map(pid => levels[pid])) + 1;
-          }
-        }
-      });
 
       return levels;
     }
@@ -803,7 +789,7 @@
     }
 
     // -----------------------------------------------------------------
-    // 5. TILE CARD BUILDER (RESPECTS ADMIN SETTINGS & HIDES EMPTY VALUES)
+    // 5. TILE CARD BUILDER
     // -----------------------------------------------------------------
     function createMemberCardHtml(person, isFocus = false) {
       const initials = person.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
@@ -856,7 +842,6 @@
       window.history.replaceState(null, null, `#person=${person.id}`);
       document.getElementById('focusCurrentCard').innerHTML = createMemberCardHtml(person, true);
 
-      // Multi-generation Bloodline Chain inside Mobile View
       const bloodlineBox = document.getElementById('focusBloodlineContainer');
       const bloodlineChain = document.getElementById('focusBloodlineChain');
       if (bloodlineMode) {
@@ -889,7 +874,6 @@
         bloodlineBox.classList.add('hidden');
       }
 
-      // Parents
       const pContainer = document.getElementById('focusParents');
       pContainer.innerHTML = '';
       const parents = familyData.filter(p => (person.parents || []).includes(p.id));
@@ -905,7 +889,6 @@
         pContainer.innerHTML = `<span class="text-xs text-slate-400 italic">No parents recorded</span>`;
       }
 
-      // Spouse
       const spContainer = document.getElementById('focusSpouse');
       spContainer.innerHTML = '';
       const spouse = familyData.find(p => p.id === person.spouse);
@@ -919,7 +902,6 @@
         spContainer.innerHTML = `<span class="text-xs text-slate-400 italic">No spouse linked</span>`;
       }
 
-      // Children
       const chContainer = document.getElementById('focusChildren');
       chContainer.innerHTML = '';
       const children = familyData.filter(p => (p.parents || []).includes(person.id));
@@ -1030,7 +1012,7 @@
     };
 
     // -----------------------------------------------------------------
-    // 7. FIXED CSV PARSER (Preserves Empty Columns)
+    // 7. CSV PARSER
     // -----------------------------------------------------------------
     function parseCsvToObjects(csvText) {
       const lines = csvText.trim().split(/\r\n|\n/).filter(line => line.trim().length > 0);
@@ -1094,7 +1076,6 @@
         document.getElementById('personDetailsModal').classList.add('hidden');
       };
 
-      // Admin Settings Modal
       document.getElementById('btnAdminSettings').onclick = () => {
         document.getElementById('cfgShowRelation').checked = !!treeSettings.showRelation;
         document.getElementById('cfgShowAge').checked = !!treeSettings.showAge;
@@ -1118,7 +1099,6 @@
         document.getElementById('settingsModal').classList.add('hidden');
       };
 
-      // Search
       const searchInput = document.getElementById('searchInput');
       const searchResults = document.getElementById('searchResults');
       searchInput.addEventListener('input', () => {
@@ -1138,7 +1118,6 @@
         searchResults.classList.remove('hidden');
       });
 
-      // Kinship Modal
       document.getElementById('btnOpenKinship').onclick = () => {
         document.getElementById('kinshipModal').classList.remove('hidden');
         computeKinship();
@@ -1147,7 +1126,6 @@
       document.getElementById('kinPersonA').onchange = computeKinship;
       document.getElementById('kinPersonB').onchange = computeKinship;
 
-      // Lineage Bloodline Toggle (Stays in current view — works cleanly in both Mobile & Canvas)
       document.getElementById('btnHighlightLineage').onclick = () => {
         bloodlineMode = !bloodlineMode;
         document.getElementById('btnHighlightLineage').innerText = bloodlineMode ? "Clear Bloodline" : "Trace Bloodline";
@@ -1155,7 +1133,6 @@
         renderCanvasView();
       };
 
-      // Fixed High-Res Poster Export
       document.getElementById('btnExportPoster').onclick = async () => {
         const btn = document.getElementById('btnExportPoster');
         const origText = btn.innerText;
@@ -1213,7 +1190,6 @@
         }
       };
 
-      // Admin Lock / Unlock
       document.getElementById('btnAdminToggle').onclick = () => {
         if (!isAdminUnlocked) {
           const pass = prompt("Enter Admin Passcode:");
@@ -1237,7 +1213,6 @@
         }
       };
 
-      // CSV Modal Controls
       document.getElementById('btnAdminCsv').onclick = () => {
         document.getElementById('csvModal').classList.remove('hidden');
       };
@@ -1247,13 +1222,11 @@
 
       document.getElementById('btnDownloadTemplate').onclick = () => {
         const csvHeader = "id,name,birthday,deathDate,relation,bio,photo,parent1,parent2,spouse\n";
-        const sampleRow1 = '1,Robert Vance,1948-06-12,2019-11-04,Grandfather,"Civil engineer",,,2\n';
-        const sampleRow2 = '2,Margaret Vance,1952-03-24,,Grandmother,"Teacher",,,1\n';
-        const sampleRow3 = '3,David Vance,1974-11-15,,Father,"Software Engineer",,1,2,4\n';
-        const sampleRow4 = '4,Sarah Vance,1977-08-09,,Mother,"Doctor",,,3\n';
-        const sampleRow5 = '5,Lucas Vance,2002-12-05,,Son,"College student",,3,4,\n';
+        const sampleRow1 = '1,Robert Vance,1948-06-12,2019-11-04,Grandfather,"Civil engineer",,,,2\n';
+        const sampleRow2 = '2,Margaret Vance,1952-03-24,,Grandmother,"Teacher",,,,1\n';
+        const sampleRow3 = '3,David Vance,1974-11-15,,Father,"Software Engineer",,,1,2,4\n';
         
-        const blob = new Blob([csvHeader + sampleRow1 + sampleRow2 + sampleRow3 + sampleRow4 + sampleRow5], { type: 'text/csv;charset=utf-8;' });
+        const blob = new Blob([csvHeader + sampleRow1 + sampleRow2 + sampleRow3], { type: 'text/csv;charset=utf-8;' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
         a.download = 'family_tree_template.csv';
@@ -1302,7 +1275,6 @@
         alert(`Successfully imported and synced ${parsedCsvResult.length} family members!`);
       };
 
-      // Photo Upload
       document.getElementById('inpPhotoFile').addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -1327,7 +1299,6 @@
         reader.readAsDataURL(file);
       });
 
-      // Form Save
       document.getElementById('memberForm').addEventListener('submit', (e) => {
         e.preventDefault();
         const id = document.getElementById('editPersonId').value;
