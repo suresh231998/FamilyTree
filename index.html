@@ -83,8 +83,8 @@
     
     <!-- Header Controls -->
     <div class="flex items-center gap-1.5 shrink-0">
-      <button id="btnOpenKinship" title="Relationship Calculator" class="px-2.5 py-1.5 text-xs bg-black/[0.05] hover:bg-black/[0.09] active:scale-95 rounded-[10px] text-[#1D1D1F] font-medium flex items-center gap-1 transition-all">
-        <span>🔗</span><span class="hidden sm:inline">Kinship</span>
+      <button id="btnOpenKinship" title="Family Connection (உறவு முறை)" class="px-2.5 py-1.5 text-xs bg-[#007AFF]/10 hover:bg-[#007AFF]/20 active:scale-95 rounded-[10px] text-[#007AFF] font-semibold flex items-center gap-1 transition-all">
+        <span>🔗</span><span class="hidden sm:inline">Family Connection</span>
       </button>
 
       <!-- Apple Segmented Control -->
@@ -257,11 +257,11 @@
     </div>
   </div>
 
-  <!-- Modal: Bilingual Tamil + English Kinship Calculator (Clean, No Redundant Swap) -->
+  <!-- Modal: Family Connection (உறவு முறை) -->
   <div id="kinshipModal" class="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
     <div class="bg-[#F5F5F7] w-full max-w-md rounded-3xl p-5 shadow-2xl border border-white/60 space-y-4">
       <div class="flex justify-between items-center">
-        <h3 class="text-base font-bold text-[#1D1D1F]">Kinship (உறவு முறை)</h3>
+        <h3 class="text-base font-bold text-[#1D1D1F]">Family Connection (உறவு முறை)</h3>
         <button id="btnCloseKinship" class="w-7 h-7 rounded-full bg-black/[0.06] hover:bg-black/[0.1] text-[#86868B] flex items-center justify-center font-bold text-sm">✕</button>
       </div>
 
@@ -277,7 +277,7 @@
       </div>
 
       <div id="kinshipResult" class="space-y-2.5">
-        <p class="text-xs text-[#86868B] text-center py-3">Select two relatives to see their relationship</p>
+        <p class="text-xs text-[#86868B] text-center py-3">Select two relatives to see their family connection</p>
       </div>
     </div>
   </div>
@@ -621,7 +621,7 @@
     }
 
     // -----------------------------------------------------------------
-    // 4. TAMIL + ENGLISH KINSHIP GRAPH ENGINE
+    // 4. FAMILY CONNECTION (உறவு முறை) GRAPH ENGINE
     // -----------------------------------------------------------------
     function findRelationshipPath(startId, targetId) {
       if (startId === targetId) return [];
@@ -816,7 +816,7 @@
     }
 
     // -----------------------------------------------------------------
-    // 5. SYMMETRICAL DYNAMIC TILE DIMENSIONS & TREE LAYOUT ENGINE
+    // 5. SYMMETRICAL DYNAMIC TILE DIMENSIONS & SMOOTH CURVED TREE ENGINE
     // -----------------------------------------------------------------
     function getPersonTileSize(person) {
       const { eng, tam } = getDisplayNames(person);
@@ -826,24 +826,22 @@
       const hasAge = treeSettings.showAge && dateStr !== '';
       const hasBio = treeSettings.showBio && person.bio && person.bio.trim() !== '';
 
-      // Measure longest visible text line
-      let maxTextW = measureTextPx(eng, '700 12px -apple-system, BlinkMacSystemFont, sans-serif');
+      let maxTextW = measureTextPx(eng, '600 12px -apple-system, BlinkMacSystemFont, sans-serif');
       if (hasTamil) {
         maxTextW = Math.max(maxTextW, measureTextPx(tam, '500 11px -apple-system, BlinkMacSystemFont, sans-serif'));
       }
       if (hasRelation) {
-        maxTextW = Math.max(maxTextW, measureTextPx(person.relation, '500 10px -apple-system, BlinkMacSystemFont, sans-serif'));
+        maxTextW = Math.max(maxTextW, measureTextPx(person.relation, '600 10px -apple-system, BlinkMacSystemFont, sans-serif'));
       }
       if (hasAge) {
-        maxTextW = Math.max(maxTextW, measureTextPx(dateStr, '400 9px -apple-system, BlinkMacSystemFont, sans-serif'));
+        maxTextW = Math.max(maxTextW, measureTextPx(dateStr, '400 9.5px -apple-system, BlinkMacSystemFont, sans-serif'));
       }
 
-      // Symmetrical 10px left padding + 40px avatar + 10px gap + text + 10px right padding (+ Edit button if unlocked)
-      const editBtnW = isAdminUnlocked ? 36 : 0;
+      // Symmetrical 10px left padding + 40px avatar + 10px gap + text + 10px right padding
+      const editBtnW = isAdminUnlocked ? 38 : 0;
       const rawW = 10 + 40 + 10 + maxTextW + editBtnW + 10;
-      const width = Math.min(Math.max(rawW, 136), 285);
+      const width = Math.min(Math.max(rawW, 136), 290);
 
-      // Dynamic compact height based on visible rows
       let extraLines = 0;
       if (hasTamil) extraLines++;
       if (hasRelation) extraLines++;
@@ -916,7 +914,6 @@
       const SPOUSE_GAP = 26;
       const SIBLING_GAP = 36;
 
-      // Precompute dynamic tile dimensions per person & max height per generation level
       const tileSizes = {};
       let maxCardH = 68;
       familyData.forEach(p => {
@@ -924,7 +921,7 @@
         tileSizes[p.id] = sz;
         if (sz.height > maxCardH) maxCardH = sz.height;
       });
-      const GAP_Y = maxCardH + 58;
+      const GAP_Y = maxCardH + 62;
 
       const levels = calculateGenerations();
       const positions = {};
@@ -1073,19 +1070,19 @@
         const pos = positions[p.id];
         if (!pos) return;
 
-        // Spouse connector touching exact right border of left card to exact left border of right card
+        // Solid smooth spouse connector line (no dots/dashes) touching exact tile edges
         if (p.spouse && positions[p.spouse] && !handledSpouses.has(p.id)) {
           const spPos = positions[p.spouse];
           const leftCard = pos.cx < spPos.cx ? pos : spPos;
           const rightCard = pos.cx < spPos.cx ? spPos : pos;
           const x1 = leftCard.x + leftCard.width;
           const x2 = rightCard.x;
-          svgHtml += `<line x1="${x1}" y1="${pos.cy}" x2="${x2}" y2="${pos.cy}" stroke="#007AFF" stroke-width="2" stroke-dasharray="4,3" />`;
+          svgHtml += `<line x1="${x1}" y1="${pos.cy}" x2="${x2}" y2="${pos.cy}" stroke="#007AFF" stroke-width="2" stroke-linecap="round" />`;
           handledSpouses.add(p.id);
           handledSpouses.add(p.spouse);
         }
 
-        // Parent-to-child connector: starts directly from the spouse connector midpoint (touching T-junction)
+        // Smooth Cubic Bezier curve from spouse line midpoint directly to child's top edge (zero sharp corners)
         if (p.parents && p.parents.length > 0) {
           const validParents = p.parents.map(pid => positions[pid]).filter(Boolean);
           if (validParents.length > 0) {
@@ -1095,24 +1092,25 @@
               const pB = validParents[1];
               const leftCard = pA.cx < pB.cx ? pA : pB;
               const rightCard = pA.cx < pB.cx ? pB : pA;
-              // Exact midpoint of the horizontal spouse line between the two parent tiles!
               startX = ((leftCard.x + leftCard.width) + rightCard.x) / 2;
               startY = leftCard.cy;
             } else {
-              // Single parent: starts directly from the bottom border of that parent tile
               startX = validParents[0].cx;
               startY = validParents[0].bottom;
             }
 
-            const parentBottomMax = Math.max(...validParents.map(pt => pt.bottom));
-            const branchY = parentBottomMax + (pos.top - parentBottomMax) / 2;
+            const endX = pos.cx;
+            const endY = pos.top;
+            const deltaY = endY - startY;
+            const cp1Y = startY + deltaY * 0.55;
+            const cp2Y = endY - deltaY * 0.45;
 
             svgHtml += `
               <path d="M ${startX} ${startY} 
-                       L ${startX} ${branchY} 
-                       L ${pos.cx} ${branchY} 
-                       L ${pos.cx} ${pos.top}" 
-                    fill="none" stroke="#AEAEB2" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+                       C ${startX} ${cp1Y}, 
+                         ${endX} ${cp2Y}, 
+                         ${endX} ${endY}" 
+                    fill="none" stroke="#AEAEB2" stroke-width="1.8" stroke-linecap="round" />
             `;
           }
         }
