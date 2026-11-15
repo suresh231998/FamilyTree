@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Our Family Tree</title>
   
+  <!-- Tree Browser Tab Icon (Favicon) -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%234f46e5'/%3E%3Ctext x='32' y='43' font-size='34' text-anchor='middle'%3E%F0%9F%8C%B3%3C/text%3E%3C/svg%3E">
+
   <!-- PWA Meta Tags -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -32,7 +35,7 @@
   <header class="bg-white border-b border-slate-200 px-3 py-2.5 flex items-center justify-between shrink-0 z-30 gap-2">
     <div class="flex items-center gap-2 min-w-0">
       <div class="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow shrink-0">🌳</div>
-      <h1 class="font-bold text-slate-800 text-sm sm:text-base truncate">Family Tree</h1>
+      <h1 id="siteTitleHeader" class="font-bold text-slate-800 text-sm sm:text-base truncate">Family Tree</h1>
     </div>
 
     <!-- Search Bar -->
@@ -53,15 +56,19 @@
       </div>
 
       <!-- Admin Actions (Hidden until unlocked) -->
-      <button id="btnAdminCsv" class="hidden px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-lg border border-emerald-200 flex items-center gap-1">
-        <span>📥</span><span class="hidden sm:inline">CSV Import</span>
+      <button id="btnAdminCsv" title="Import CSV" class="hidden px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-lg border border-emerald-200 flex items-center gap-1">
+        <span>📥</span><span class="hidden md:inline">CSV Import</span>
       </button>
 
-      <button id="btnAddPerson" class="hidden bg-indigo-600 text-white px-2.5 py-1 rounded-lg text-xs font-semibold shadow hover:bg-indigo-700">
+      <button id="btnAddPerson" title="Add Relative" class="hidden bg-indigo-600 text-white px-2.5 py-1 rounded-lg text-xs font-semibold shadow hover:bg-indigo-700">
         + Add
       </button>
 
-      <!-- Admin Toggle -->
+      <button id="btnAdminSettings" title="Tree & Tile Settings" class="hidden p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg border border-slate-200">
+        ⚙️
+      </button>
+
+      <!-- Admin Lock/Unlock Toggle -->
       <button id="btnAdminToggle" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg border border-slate-200">
         <span id="adminStatusText">🔒 Admin</span>
       </button>
@@ -73,7 +80,7 @@
     <div class="flex items-center gap-2" id="birthdayTickerText">
       <span>🎂 Checking upcoming milestones...</span>
     </div>
-    <button id="btnExportPoster" class="text-[11px] bg-white border border-indigo-200 rounded px-2 py-0.5 ml-2 font-medium text-indigo-700 shadow-sm shrink-0">
+    <button id="btnExportPoster" class="text-[11px] bg-white border border-indigo-200 rounded px-2 py-0.5 ml-2 font-medium text-indigo-700 shadow-sm shrink-0 hover:bg-indigo-50 active:scale-95 transition-transform">
       📸 Save Poster
     </button>
   </div>
@@ -125,10 +132,80 @@
       <div class="absolute bottom-6 right-4 flex flex-col gap-2 z-20">
         <button id="btnZoomIn" class="w-10 h-10 rounded-full bg-white shadow-md border border-slate-200 text-lg font-bold flex items-center justify-center active:bg-slate-100">+</button>
         <button id="btnZoomOut" class="w-10 h-10 rounded-full bg-white shadow-md border border-slate-200 text-lg font-bold flex items-center justify-center active:bg-slate-100">-</button>
-        <button id="btnResetView" class="w-10 h-10 rounded-full bg-white shadow-md border border-slate-200 text-xs font-bold flex items-center justify-center active:bg-slate-100">Reset</button>
+        <button id="btnResetView" disabled class="w-10 h-10 rounded-full bg-white shadow-md border border-slate-200 text-xs font-bold flex items-center justify-center opacity-40 cursor-not-allowed transition-opacity">Reset</button>
       </div>
     </div>
   </main>
+
+  <!-- Modal: Admin Settings (Tile Fields & Tree Options) -->
+  <div id="settingsModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-md rounded-2xl p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+        <h3 class="text-sm font-bold text-slate-800 flex items-center gap-1.5"><span>⚙️</span> Tree & Tile Settings</h3>
+        <button id="btnCloseSettings" class="text-slate-400 hover:text-slate-600 font-bold text-lg">&times;</button>
+      </div>
+
+      <!-- Section 1: Tile Visibility -->
+      <div class="space-y-2.5">
+        <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Tile Display Fields</h4>
+        <p class="text-[11px] text-slate-500">Choose what appears on tree tiles. Empty fields are automatically hidden.</p>
+        
+        <div class="space-y-2 bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs">
+          <!-- Mandatory Fields -->
+          <div class="flex items-center justify-between opacity-60">
+            <span class="font-semibold text-slate-700">Full Name</span>
+            <span class="text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded font-semibold">Mandatory</span>
+          </div>
+          <div class="flex items-center justify-between opacity-60">
+            <span class="font-semibold text-slate-700">Profile Photo / Initials</span>
+            <span class="text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded font-semibold">Mandatory</span>
+          </div>
+
+          <hr class="border-slate-200 my-1">
+
+          <!-- Configurable Toggles -->
+          <label class="flex items-center justify-between cursor-pointer py-1">
+            <span class="font-medium text-slate-700">Relation Title (e.g. Father)</span>
+            <input type="checkbox" id="cfgShowRelation" class="w-4 h-4 accent-indigo-600 rounded">
+          </label>
+          <label class="flex items-center justify-between cursor-pointer py-1">
+            <span class="font-medium text-slate-700">Age & Birth/Passing Years</span>
+            <input type="checkbox" id="cfgShowAge" class="w-4 h-4 accent-indigo-600 rounded">
+          </label>
+          <label class="flex items-center justify-between cursor-pointer py-1">
+            <span class="font-medium text-slate-700">Short Bio Snippet</span>
+            <input type="checkbox" id="cfgShowBio" class="w-4 h-4 accent-indigo-600 rounded">
+          </label>
+        </div>
+      </div>
+
+      <!-- Section 2: General Portal Configuration -->
+      <div class="space-y-2.5">
+        <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Portal Preferences</h4>
+        <div class="space-y-3 text-xs">
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">Website / Family Title</label>
+            <input type="text" id="cfgSiteTitle" placeholder="Family Tree" class="w-full px-3 py-1.5 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">Birthday Alert Window</label>
+            <select id="cfgBirthdayDays" class="w-full px-3 py-1.5 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
+              <option value="30">Next 30 Days</option>
+              <option value="60">Next 60 Days</option>
+              <option value="90">Next 90 Days</option>
+              <option value="0">Hide Birthday Banner</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex gap-2 pt-2 border-t border-slate-100">
+        <button id="btnSaveSettings" class="flex-1 bg-indigo-600 text-white py-2 rounded-lg text-xs font-semibold shadow hover:bg-indigo-700">
+          Save & Apply Settings
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- Modal: Person Details (Read-only for all visitors) -->
   <div id="personDetailsModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
@@ -168,7 +245,7 @@
       </div>
       
       <p class="text-xs text-slate-500 leading-relaxed">
-        Upload a spreadsheet (.csv) containing your relatives. Ensure your columns match:
+        Upload a spreadsheet (.csv) containing your relatives. Columns:
         <code class="text-[11px] bg-slate-100 px-1 py-0.5 rounded text-indigo-600 font-mono block mt-1">id, name, birthday, deathDate, relation, bio, photo, parent1, parent2, spouse</code>
       </p>
 
@@ -187,8 +264,8 @@
       </div>
 
       <div class="flex items-center gap-2">
-        <input type="checkbox" id="chkReplaceAll" class="rounded text-indigo-600">
-        <label for="chkReplaceAll" class="text-xs text-slate-600 font-medium">Replace current tree completely (unchecked will append/update)</label>
+        <input type="checkbox" id="chkReplaceAll" checked class="rounded text-indigo-600">
+        <label for="chkReplaceAll" class="text-xs text-slate-600 font-medium">Replace current tree completely</label>
       </div>
 
       <div class="flex gap-2 pt-2">
@@ -273,16 +350,28 @@
 
   <script>
     // -----------------------------------------------------------------
-    // 1. CONFIGURATION & STATE
+    // 1. CONFIGURATION & STATE (Pre-configured with your Firebase Keys)
     // -----------------------------------------------------------------
     const firebaseConfig = {
       apiKey: "AIzaSyCMoi0ecGeFWYJy6qfEGGiGeuW2TFRZVrs",
+      authDomain: "family-tree-v1-81225.firebaseapp.com",
       databaseURL: "https://family-tree-v1-81225-default-rtdb.firebaseio.com",
-      projectId: "family-tree-v1-81225"
+      projectId: "family-tree-v1-81225",
+      storageBucket: "family-tree-v1-81225.firebasestorage.app",
+      messagingSenderId: "394357511409",
+      appId: "1:394357511409:web:b2ac91b886ecb4bcf8c550"
     };
 
     const ADMIN_PASSCODE = "1234";
     let isAdminUnlocked = false;
+
+    let treeSettings = {
+      siteTitle: "Family Tree",
+      showRelation: true,
+      showAge: true,
+      showBio: false,
+      birthdayDays: 60
+    };
 
     let familyData = [
       { id: '1', name: 'Robert Vance', birthday: '1948-06-12', deathDate: '2019-11-04', photo: '', relation: 'Grandfather', bio: 'Served in the civil engineering corps, loved woodworking and gardening.', parents: [], spouse: '2' },
@@ -297,20 +386,21 @@
     let firebaseDb = null;
     let bloodlineMode = false;
     let parsedCsvResult = null;
+    let activeViewMode = 'focus';
 
     // -----------------------------------------------------------------
     // 2. INITIALIZATION
     // -----------------------------------------------------------------
     function initApp() {
-      // Setup PWA Manifest
+      // PWA Manifest
       const manifest = {
-        name: "Our Family Tree",
+        name: treeSettings.siteTitle,
         short_name: "FamilyTree",
         start_url: "./",
         display: "standalone",
         background_color: "#f8fafc",
         theme_color: "#4f46e5",
-        icons: [{ src: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png", sizes: "512x512", type: "image/png" }]
+        icons: [{ src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%234f46e5'/%3E%3Ctext x='32' y='43' font-size='34' text-anchor='middle'%3E%F0%9F%8C%B3%3C/text%3E%3C/svg%3E", sizes: "512x512", type: "image/svg+xml" }]
       };
       const blob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
       const link = document.createElement('link');
@@ -318,24 +408,30 @@
       link.href = URL.createObjectURL(blob);
       document.head.appendChild(link);
 
-      // Deep Linking: Read URL hash
+      // Load local settings & data
+      const savedSettings = localStorage.getItem('localTreeSettings');
+      if (savedSettings) {
+        try { treeSettings = { ...treeSettings, ...JSON.parse(savedSettings) }; } catch(e){}
+      }
+
+      const savedData = localStorage.getItem('localFamilyTree');
+      if (savedData) {
+        try { familyData = JSON.parse(savedData); } catch(e){}
+      }
+
+      // Deep Linking
       const hash = window.location.hash;
       if (hash && hash.includes('person=')) {
         const id = hash.split('person=')[1];
         if (familyData.some(p => p.id === id)) currentFocusId = id;
       }
 
-      // Check Local Cache
-      const saved = localStorage.getItem('localFamilyTree');
-      if (saved) {
-        try { familyData = JSON.parse(saved); } catch(e){}
-      }
-
-      // Firebase connect
+      // Firebase Connect
       if (firebaseConfig.apiKey && firebaseConfig.databaseURL) {
         try {
           firebase.initializeApp(firebaseConfig);
           firebaseDb = firebase.database();
+
           firebaseDb.ref('familyTree').on('value', snap => {
             const val = snap.val();
             if (val && Array.isArray(val) && val.length > 0) {
@@ -345,13 +441,22 @@
               firebaseDb.ref('familyTree').set(familyData);
             }
           });
+
+          firebaseDb.ref('familySettings').on('value', snap => {
+            const val = snap.val();
+            if (val) {
+              treeSettings = { ...treeSettings, ...val };
+              applySettingsUI();
+              renderAll();
+            }
+          });
         } catch(e) { console.error(e); }
       }
 
+      applySettingsUI();
       setupPanZoom();
       setupEvents();
 
-      // Screen responsive view check on start
       if (window.innerWidth >= 768) {
         switchView('canvas');
       } else {
@@ -369,8 +474,65 @@
       renderAll();
     }
 
+    function syncSettings() {
+      if (firebaseDb) {
+        firebaseDb.ref('familySettings').set(treeSettings);
+      } else {
+        localStorage.setItem('localTreeSettings', JSON.stringify(treeSettings));
+      }
+      applySettingsUI();
+      renderAll();
+    }
+
+    function applySettingsUI() {
+      document.title = treeSettings.siteTitle || "Family Tree";
+      document.getElementById('siteTitleHeader').innerText = treeSettings.siteTitle || "Family Tree";
+      const ticker = document.getElementById('birthdayTicker');
+      if (parseInt(treeSettings.birthdayDays) === 0) {
+        ticker.classList.add('hidden');
+      } else {
+        ticker.classList.remove('hidden');
+      }
+    }
+
     // -----------------------------------------------------------------
-    // 3. TREE GENERATION & CANVAS RENDERING
+    // 3. DATE PARSING HELPERS (Supports YYYY-MM-DD and DD-MM-YYYY)
+    // -----------------------------------------------------------------
+    function parseFlexibleDate(dateStr) {
+      if (!dateStr) return null;
+      const clean = String(dateStr).trim();
+      const dmy = clean.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+      if (dmy) {
+        return new Date(parseInt(dmy[3]), parseInt(dmy[2]) - 1, parseInt(dmy[1]));
+      }
+      const ymd = clean.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+      if (ymd) {
+        return new Date(parseInt(ymd[1]), parseInt(ymd[2]) - 1, parseInt(ymd[3]));
+      }
+      const parsed = new Date(clean);
+      return isNaN(parsed.getTime()) ? null : parsed;
+    }
+
+    function getPersonDates(p) {
+      const bDate = parseFlexibleDate(p.birthday);
+      const dDate = parseFlexibleDate(p.deathDate);
+      if (!bDate && !dDate) return '';
+
+      const bYear = bDate ? bDate.getFullYear() : '?';
+      if (dDate) {
+        const dYear = dDate.getFullYear();
+        const ageText = bDate ? ` (Aged ${dYear - bYear})` : '';
+        return `${bYear}–${dYear}${ageText}`;
+      }
+      const today = new Date();
+      let age = today.getFullYear() - bDate.getFullYear();
+      const m = today.getMonth() - bDate.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < bDate.getDate())) age--;
+      return `Age ${age} (b. ${bYear})`;
+    }
+
+    // -----------------------------------------------------------------
+    // 4. HIERARCHICAL SUBTREE-CENTERED TREE ENGINE
     // -----------------------------------------------------------------
     function calculateGenerations() {
       const levels = {};
@@ -380,26 +542,53 @@
 
       let changed = true;
       let iterations = 0;
-      while (changed && iterations < 15) {
+      while (changed && iterations < 20) {
         changed = false;
         iterations++;
         familyData.forEach(p => {
           if (p.parents && p.parents.length > 0) {
-            const maxParentLevel = Math.max(...p.parents.map(pid => levels[pid] !== undefined ? levels[pid] : 0));
-            const newLevel = maxParentLevel + 1;
-            if (levels[p.id] !== newLevel) {
-              levels[p.id] = newLevel;
-              changed = true;
+            const validParents = p.parents.filter(pid => levels[pid] !== undefined);
+            if (validParents.length > 0) {
+              const maxParentLevel = Math.max(...validParents.map(pid => levels[pid]));
+              const newLevel = maxParentLevel + 1;
+              if (levels[p.id] !== newLevel) {
+                levels[p.id] = newLevel;
+                changed = true;
+              }
             }
           }
         });
       }
 
+      changed = true;
+      iterations = 0;
+      while (changed && iterations < 10) {
+        changed = false;
+        iterations++;
+        familyData.forEach(p => {
+          if (p.spouse && levels[p.spouse] !== undefined) {
+            const myLvl = levels[p.id] !== undefined ? levels[p.id] : 0;
+            const spLvl = levels[p.spouse];
+            const pHasParents = p.parents && p.parents.length > 0;
+            const spObj = familyData.find(x => x.id === p.spouse);
+            const spHasParents = spObj && spObj.parents && spObj.parents.length > 0;
+
+            let targetLvl = Math.max(myLvl, spLvl);
+            if (pHasParents && !spHasParents) targetLvl = myLvl;
+            if (spHasParents && !pHasParents) targetLvl = spLvl;
+
+            if (levels[p.id] !== targetLvl) { levels[p.id] = targetLvl; changed = true; }
+            if (levels[p.spouse] !== targetLvl) { levels[p.spouse] = targetLvl; changed = true; }
+          }
+        });
+      }
+
       familyData.forEach(p => {
-        if (p.spouse && levels[p.spouse] !== undefined && levels[p.id] !== undefined) {
-          const maxLvl = Math.max(levels[p.id], levels[p.spouse]);
-          levels[p.id] = maxLvl;
-          levels[p.spouse] = maxLvl;
+        if (p.parents && p.parents.length > 0) {
+          const validParents = p.parents.filter(pid => levels[pid] !== undefined);
+          if (validParents.length > 0) {
+            levels[p.id] = Math.max(...validParents.map(pid => levels[pid])) + 1;
+          }
         }
       });
 
@@ -415,60 +604,127 @@
       container.appendChild(svg);
       svg.innerHTML = '';
 
-      const CARD_W = 200;
-      const CARD_H = 76;
-      const GAP_X = 50;
-      const GAP_Y = 140;
+      const CARD_W = 205;
+      const CARD_H = treeSettings.showBio ? 96 : 76;
+      const SPOUSE_GAP = 28;
+      const SIBLING_GAP = 44;
+      const GAP_Y = CARD_H + 64;
 
       const levels = calculateGenerations();
-      const rows = {};
       const positions = {};
+      const visitedUnits = new Set();
 
-      familyData.forEach(p => {
-        const lvl = levels[p.id] || 0;
-        if (!rows[lvl]) rows[lvl] = [];
-        rows[lvl].push(p);
-      });
+      function getUnitMembers(personId) {
+        const p = familyData.find(x => x.id === personId);
+        if (!p) return [];
+        if (p.spouse) {
+          const sp = familyData.find(x => x.id === p.spouse);
+          if (sp) return [p, sp];
+        }
+        return [p];
+      }
 
-      Object.keys(rows).forEach(lvl => {
-        const row = rows[lvl];
-        const visited = new Set();
-        const ordered = [];
+      function getUnitChildren(members) {
+        const memberIds = new Set(members.map(m => m.id));
+        return familyData.filter(child => 
+          child.parents && child.parents.some(pid => memberIds.has(pid))
+        );
+      }
 
-        row.forEach(p => {
-          if (visited.has(p.id)) return;
-          ordered.push(p);
-          visited.add(p.id);
-          if (p.spouse) {
-            const sp = row.find(x => x.id === p.spouse);
-            if (sp && !visited.has(sp.id)) {
-              ordered.push(sp);
-              visited.add(sp.id);
+      function measureSubtree(personId, seen = new Set()) {
+        const members = getUnitMembers(personId);
+        if (members.length === 0 || members.some(m => seen.has(m.id))) return 0;
+        members.forEach(m => seen.add(m.id));
+
+        const selfWidth = members.length * CARD_W + (members.length - 1) * SPOUSE_GAP;
+        const children = getUnitChildren(members);
+        if (children.length === 0) return selfWidth;
+
+        let childrenTotalWidth = 0;
+        let childCount = 0;
+        children.forEach(c => {
+          if (!seen.has(c.id)) {
+            const w = measureSubtree(c.id, seen);
+            if (w > 0) {
+              childrenTotalWidth += w;
+              childCount++;
             }
           }
         });
-        rows[lvl] = ordered;
+        if (childCount > 1) childrenTotalWidth += (childCount - 1) * SIBLING_GAP;
+        return Math.max(selfWidth, childrenTotalWidth);
+      }
+
+      function placeSubtree(personId, leftX) {
+        const members = getUnitMembers(personId);
+        if (members.length === 0 || members.some(m => visitedUnits.has(m.id))) return;
+        members.forEach(m => visitedUnits.add(m.id));
+
+        const subtreeWidth = measureSubtree(personId, new Set());
+        const selfWidth = members.length * CARD_W + (members.length - 1) * SPOUSE_GAP;
+        const unitStartX = leftX + (subtreeWidth - selfWidth) / 2;
+        const lvl = levels[members[0].id] || 0;
+        const y = lvl * GAP_Y + 60;
+
+        members.forEach((m, idx) => {
+          const x = unitStartX + idx * (CARD_W + SPOUSE_GAP);
+          positions[m.id] = { x, y, cx: x + CARD_W / 2, cy: y + CARD_H / 2, bottom: y + CARD_H, top: y };
+        });
+
+        const children = getUnitChildren(members);
+        if (children.length > 0) {
+          let totalChildW = 0;
+          const validChildren = [];
+          children.forEach(c => {
+            if (!visitedUnits.has(c.id)) {
+              const w = measureSubtree(c.id, new Set());
+              if (w > 0) {
+                validChildren.push({ id: c.id, width: w });
+                totalChildW += w;
+              }
+            }
+          });
+          if (validChildren.length > 1) totalChildW += (validChildren.length - 1) * SIBLING_GAP;
+
+          let childCursorX = leftX + (subtreeWidth - totalChildW) / 2;
+          validChildren.forEach(vc => {
+            placeSubtree(vc.id, childCursorX);
+            childCursorX += vc.width + SIBLING_GAP;
+          });
+        }
+      }
+
+      const roots = familyData.filter(p => {
+        if (p.parents && p.parents.length > 0) return false;
+        if (p.spouse) {
+          const sp = familyData.find(x => x.id === p.spouse);
+          if (sp && sp.parents && sp.parents.length > 0) return false;
+        }
+        return true;
       });
 
-      const maxRowLen = Math.max(...Object.values(rows).map(r => r.length), 1);
-      const canvasCenter = (maxRowLen * (CARD_W + GAP_X)) / 2 + 100;
+      let cursorX = 80;
+      roots.forEach(root => {
+        if (!visitedUnits.has(root.id)) {
+          const w = measureSubtree(root.id, new Set());
+          placeSubtree(root.id, cursorX);
+          cursorX += w + 90;
+        }
+      });
 
-      Object.keys(rows).forEach(lvl => {
-        const row = rows[lvl];
-        const rowWidth = row.length * (CARD_W + GAP_X) - GAP_X;
-        const startX = Math.max(50, canvasCenter - rowWidth / 2);
-        const y = parseInt(lvl) * GAP_Y + 60;
-
-        row.forEach((p, idx) => {
-          const x = startX + idx * (CARD_W + GAP_X);
-          positions[p.id] = { x, y, cx: x + CARD_W / 2, cy: y + CARD_H / 2, bottom: y + CARD_H, top: y };
-        });
+      familyData.forEach(p => {
+        if (!positions[p.id]) {
+          const lvl = levels[p.id] || 0;
+          const y = lvl * GAP_Y + 60;
+          positions[p.id] = { x: cursorX, y, cx: cursorX + CARD_W / 2, cy: y + CARD_H / 2, bottom: y + CARD_H, top: y };
+          cursorX += CARD_W + SIBLING_GAP;
+        }
       });
 
       let maxX = 1200, maxY = 800;
       Object.values(positions).forEach(pos => {
-        if (pos.x + CARD_W + 200 > maxX) maxX = pos.x + CARD_W + 200;
-        if (pos.y + CARD_H + 200 > maxY) maxY = pos.y + CARD_H + 200;
+        if (pos.x + CARD_W + 250 > maxX) maxX = pos.x + CARD_W + 250;
+        if (pos.y + CARD_H + 250 > maxY) maxY = pos.y + CARD_H + 250;
       });
       container.style.width = `${maxX}px`;
       container.style.height = `${maxY}px`;
@@ -482,7 +738,6 @@
         const pos = positions[p.id];
         if (!pos) return;
 
-        // Spouse lines
         if (p.spouse && positions[p.spouse] && !handledSpouses.has(p.id)) {
           const spPos = positions[p.spouse];
           const x1 = Math.min(pos.cx, spPos.cx) + CARD_W / 2;
@@ -492,7 +747,6 @@
           handledSpouses.add(p.spouse);
         }
 
-        // Child lines
         if (p.parents && p.parents.length > 0) {
           const validParents = p.parents.map(pid => positions[pid]).filter(Boolean);
           if (validParents.length > 0) {
@@ -525,13 +779,13 @@
         const isHighlight = bloodlineMode && ancestorSet.has(p.id);
 
         const card = document.createElement('div');
-        card.className = `absolute bg-white rounded-xl shadow-sm border border-slate-200 p-2.5 cursor-pointer transition-all hover:shadow-md hover:border-indigo-300 ${isDimmed ? 'dimmed' : ''} ${isHighlight ? 'ring-2 ring-indigo-500' : ''}`;
+        card.className = `absolute bg-white rounded-xl shadow-sm border border-slate-200 p-2.5 cursor-pointer transition-all hover:shadow-md hover:border-indigo-300 flex flex-col justify-center ${isDimmed ? 'dimmed' : ''} ${isHighlight ? 'ring-2 ring-indigo-500' : ''}`;
         card.style.width = `${CARD_W}px`;
         card.style.height = `${CARD_H}px`;
         card.style.left = `${pos.x}px`;
         card.style.top = `${pos.y}px`;
         card.style.zIndex = "2";
-        card.innerHTML = createMemberCardHtml(p);
+        card.innerHTML = createMemberCardHtml(p, false);
         
         card.onclick = (e) => {
           if (e.target.tagName !== 'BUTTON') {
@@ -543,33 +797,38 @@
     }
 
     // -----------------------------------------------------------------
-    // 4. RENDERING VIEWS & CARDS
+    // 5. TILE CARD BUILDER (RESPECTS ADMIN SETTINGS & HIDES EMPTY VALUES)
     // -----------------------------------------------------------------
-    function getPersonDates(p) {
-      if (!p.birthday) return '';
-      const bYear = new Date(p.birthday).getFullYear();
-      if (p.deathDate) {
-        const dYear = new Date(p.deathDate).getFullYear();
-        return `${bYear}–${dYear} (Aged ${dYear - bYear})`;
-      }
-      const age = new Date().getFullYear() - bYear;
-      return `Age ${age} (b. ${bYear})`;
-    }
-
     function createMemberCardHtml(person, isFocus = false) {
-      const initials = person.name.split(' ').map(n => n[0]).slice(0, 2).join('');
+      const initials = person.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
       const avatarHtml = person.photo 
         ? `<img src="${person.photo}" class="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0">`
         : `<div class="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-xs border border-indigo-200 shrink-0">${initials}</div>`;
 
+      const relationHtml = (treeSettings.showRelation && person.relation && person.relation.trim() !== '')
+        ? `<p class="text-[10px] text-indigo-600 font-medium truncate">${person.relation}</p>`
+        : '';
+
+      const dateStr = getPersonDates(person);
+      const datesHtml = (treeSettings.showAge && dateStr !== '')
+        ? `<p class="text-[9px] text-slate-400 truncate">${dateStr}</p>`
+        : '';
+
+      const hasBio = person.bio && person.bio.trim() !== '';
+      const bioHtml = (isFocus && hasBio)
+        ? `<p class="mt-2 text-xs text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100">${person.bio}</p>`
+        : (!isFocus && treeSettings.showBio && hasBio)
+          ? `<p class="text-[9px] text-slate-500 truncate mt-0.5">${person.bio}</p>`
+          : '';
+
       return `
-        <div class="flex items-start gap-2.5">
+        <div class="flex items-center gap-2.5 w-full">
           ${avatarHtml}
           <div class="min-w-0 flex-1">
             <h4 class="font-bold text-slate-800 text-xs truncate leading-tight">${person.name}</h4>
-            <p class="text-[10px] text-indigo-600 font-medium">${person.relation || 'Relative'}</p>
-            <p class="text-[9px] text-slate-400">${getPersonDates(person)}</p>
-            ${isFocus && person.bio ? `<p class="mt-2 text-xs text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100">${person.bio}</p>` : ''}
+            ${relationHtml}
+            ${datesHtml}
+            ${bioHtml}
           </div>
           ${isAdminUnlocked ? `<button onclick="event.stopPropagation(); openEditModal('${person.id}')" class="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded shrink-0">Edit</button>` : ''}
         </div>
@@ -652,20 +911,25 @@
     }
 
     function updateBirthdayTicker() {
+      const windowDays = parseInt(treeSettings.birthdayDays);
+      if (windowDays === 0) return;
+
       const today = new Date();
+      today.setHours(0,0,0,0);
       const currentYear = today.getFullYear();
       const upcoming = [];
 
       familyData.forEach(p => {
         if (!p.birthday || p.deathDate) return;
-        const bdate = new Date(p.birthday);
+        const bdate = parseFlexibleDate(p.birthday);
+        if (!bdate) return;
         let nextBday = new Date(currentYear, bdate.getMonth(), bdate.getDate());
         if (nextBday < today) {
           nextBday = new Date(currentYear + 1, bdate.getMonth(), bdate.getDate());
         }
         const diffDays = Math.ceil((nextBday - today) / (1000 * 60 * 60 * 24));
         const turningAge = nextBday.getFullYear() - bdate.getFullYear();
-        if (diffDays <= 60) {
+        if (diffDays <= windowDays) {
           upcoming.push({ name: p.name, days: diffDays, age: turningAge });
         }
       });
@@ -677,18 +941,18 @@
         const item = upcoming[0];
         ticker.innerHTML = `<span>🎂 <strong>${item.name}</strong> turns ${item.age} in <strong>${item.days === 0 ? 'Today!' : item.days + ' days'}</strong></span>`;
       } else {
-        ticker.innerHTML = `<span>🌿 No birthdays in the next 60 days. Everything is up to date!</span>`;
+        ticker.innerHTML = `<span>🌿 No birthdays in the next ${windowDays} days. Everything is up to date!</span>`;
       }
     }
 
     // -----------------------------------------------------------------
-    // 5. PERSON DETAILS POPUP MODAL
+    // 6. PERSON DETAILS POPUP MODAL
     // -----------------------------------------------------------------
     window.openPersonDetailsModal = function(id) {
       const p = familyData.find(item => item.id === id);
       if (!p) return;
 
-      const initials = p.name.split(' ').map(n => n[0]).slice(0, 2).join('');
+      const initials = p.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
       const avatarHtml = p.photo 
         ? `<img src="${p.photo}" class="w-16 h-16 rounded-full object-cover border-2 border-indigo-200 mx-auto">`
         : `<div class="w-16 h-16 rounded-full bg-indigo-100 text-indigo-700 font-bold text-lg flex items-center justify-center border-2 border-indigo-200 mx-auto">${initials}</div>`;
@@ -696,13 +960,14 @@
       const parents = familyData.filter(x => (p.parents || []).includes(x.id));
       const spouse = familyData.find(x => x.id === p.spouse);
       const children = familyData.filter(x => (x.parents || []).includes(p.id));
+      const dateText = getPersonDates(p);
 
       const content = `
         <div class="text-center">
           ${avatarHtml}
           <h3 class="text-base font-bold text-slate-800 mt-2">${p.name}</h3>
-          <p class="text-xs text-indigo-600 font-semibold">${p.relation || 'Family Relative'}</p>
-          <p class="text-xs text-slate-400 mt-0.5">${getPersonDates(p)}</p>
+          ${p.relation ? `<p class="text-xs text-indigo-600 font-semibold">${p.relation}</p>` : ''}
+          ${dateText ? `<p class="text-xs text-slate-400 mt-0.5">${dateText}</p>` : ''}
         </div>
 
         ${p.bio ? `<div class="bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs text-slate-600 leading-relaxed">${p.bio}</div>` : ''}
@@ -726,22 +991,39 @@
     };
 
     // -----------------------------------------------------------------
-    // 6. CSV BATCH IMPORT ENGINE (ADMIN CONSOLE)
+    // 7. FIXED CSV PARSER (Preserves Empty Columns)
     // -----------------------------------------------------------------
     function parseCsvToObjects(csvText) {
       const lines = csvText.trim().split(/\r\n|\n/).filter(line => line.trim().length > 0);
       if (lines.length < 2) return [];
 
-      const headers = lines[0].split(',').map(h => h.trim().replace(/^["']|["']$/g, ''));
+      function splitCsvLine(line) {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          if (char === '"') {
+            inQuotes = !inQuotes;
+          } else if (char === ',' && !inQuotes) {
+            result.push(current.trim());
+            current = '';
+          } else {
+            current += char;
+          }
+        }
+        result.push(current.trim());
+        return result;
+      }
+
+      const headers = splitCsvLine(lines[0]);
       const results = [];
 
       for (let i = 1; i < lines.length; i++) {
-        // Robust CSV splitting accounting for potential commas inside quotes
-        const row = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || lines[i].split(',');
+        const row = splitCsvLine(lines[i]);
         const obj = {};
         headers.forEach((header, idx) => {
-          let val = row[idx] ? row[idx].trim().replace(/^["']|["']$/g, '') : '';
-          obj[header] = val;
+          obj[header] = row[idx] !== undefined ? row[idx] : '';
         });
 
         if (obj.id && obj.name) {
@@ -766,12 +1048,35 @@
     }
 
     // -----------------------------------------------------------------
-    // 7. EVENTS & UI CONTROLLERS
+    // 8. EVENTS & CONTROLLERS
     // -----------------------------------------------------------------
     function setupEvents() {
-      // Close details modal
       document.getElementById('btnCloseDetails').onclick = () => {
         document.getElementById('personDetailsModal').classList.add('hidden');
+      };
+
+      // Admin Settings Modal
+      document.getElementById('btnAdminSettings').onclick = () => {
+        document.getElementById('cfgShowRelation').checked = !!treeSettings.showRelation;
+        document.getElementById('cfgShowAge').checked = !!treeSettings.showAge;
+        document.getElementById('cfgShowBio').checked = !!treeSettings.showBio;
+        document.getElementById('cfgSiteTitle').value = treeSettings.siteTitle || "Family Tree";
+        document.getElementById('cfgBirthdayDays').value = String(treeSettings.birthdayDays ?? 60);
+        document.getElementById('settingsModal').classList.remove('hidden');
+      };
+
+      document.getElementById('btnCloseSettings').onclick = () => {
+        document.getElementById('settingsModal').classList.add('hidden');
+      };
+
+      document.getElementById('btnSaveSettings').onclick = () => {
+        treeSettings.showRelation = document.getElementById('cfgShowRelation').checked;
+        treeSettings.showAge = document.getElementById('cfgShowAge').checked;
+        treeSettings.showBio = document.getElementById('cfgShowBio').checked;
+        treeSettings.siteTitle = document.getElementById('cfgSiteTitle').value.trim() || "Family Tree";
+        treeSettings.birthdayDays = parseInt(document.getElementById('cfgBirthdayDays').value);
+        syncSettings();
+        document.getElementById('settingsModal').classList.add('hidden');
       };
 
       // Search
@@ -787,7 +1092,7 @@
           searchResults.innerHTML = matches.map(m => `
             <div class="px-3 py-2 hover:bg-slate-100 cursor-pointer flex items-center gap-2 border-b border-slate-50 last:border-0" onclick="setFocus('${m.id}'); openPersonDetailsModal('${m.id}'); document.getElementById('searchResults').classList.add('hidden'); document.getElementById('searchInput').value='';">
               <span class="text-xs font-bold text-slate-700">${m.name}</span>
-              <span class="text-[10px] text-indigo-600">${m.relation || ''}</span>
+              ${m.relation ? `<span class="text-[10px] text-indigo-600">${m.relation}</span>` : ''}
             </div>
           `).join('');
         }
@@ -811,26 +1116,74 @@
         if (bloodlineMode) switchView('canvas');
       };
 
-      // Poster Export
-      document.getElementById('btnExportPoster').onclick = () => {
-        const target = document.getElementById('focusView');
-        html2canvas(target).then(canvas => {
-          const a = document.createElement('a');
-          a.download = 'family-tree-poster.png';
-          a.href = canvas.toDataURL();
-          a.click();
-        });
+      // Fixed High-Res Poster Export
+      document.getElementById('btnExportPoster').onclick = async () => {
+        const btn = document.getElementById('btnExportPoster');
+        const origText = btn.innerText;
+        btn.innerText = "⏳ Generating...";
+        btn.disabled = true;
+
+        try {
+          let targetEl;
+          let cleanupClone = null;
+
+          if (activeViewMode === 'canvas') {
+            const src = document.getElementById('treeContainer');
+            const clone = src.cloneNode(true);
+            clone.style.transform = 'none';
+            clone.style.position = 'fixed';
+            clone.style.left = '-99999px';
+            clone.style.top = '0';
+            clone.style.backgroundColor = '#f8fafc';
+            document.body.appendChild(clone);
+            targetEl = clone;
+            cleanupClone = () => document.body.removeChild(clone);
+          } else {
+            targetEl = document.getElementById('focusView');
+          }
+
+          const canvas = await html2canvas(targetEl, {
+            backgroundColor: '#f8fafc',
+            scale: 2,
+            useCORS: true,
+            logging: false
+          });
+
+          if (cleanupClone) cleanupClone();
+
+          canvas.toBlob((blob) => {
+            if (!blob || blob.size === 0) {
+              alert("Could not generate poster image.");
+              return;
+            }
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.download = `${(treeSettings.siteTitle || 'family-tree').toLowerCase().replace(/\s+/g, '-')}.png`;
+            a.href = url;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+          }, 'image/png');
+        } catch (err) {
+          console.error(err);
+          alert("Poster export failed: " + err.message);
+        } finally {
+          btn.innerText = origText;
+          btn.disabled = false;
+        }
       };
 
       // Admin Lock / Unlock
       document.getElementById('btnAdminToggle').onclick = () => {
         if (!isAdminUnlocked) {
-          const pass = prompt("Enter Admin Passcode to enable editing & CSV import:");
+          const pass = prompt("Enter Admin Passcode:");
           if (pass === ADMIN_PASSCODE) {
             isAdminUnlocked = true;
             document.getElementById('adminStatusText').innerText = "🔓 Admin";
             document.getElementById('btnAddPerson').classList.remove('hidden');
             document.getElementById('btnAdminCsv').classList.remove('hidden');
+            document.getElementById('btnAdminSettings').classList.remove('hidden');
             renderAll();
           } else if (pass) {
             alert("Incorrect passcode");
@@ -840,6 +1193,7 @@
           document.getElementById('adminStatusText').innerText = "🔒 Admin";
           document.getElementById('btnAddPerson').classList.add('hidden');
           document.getElementById('btnAdminCsv').classList.add('hidden');
+          document.getElementById('btnAdminSettings').classList.add('hidden');
           renderAll();
         }
       };
@@ -852,13 +1206,12 @@
         document.getElementById('csvModal').classList.add('hidden');
       };
 
-      // Download Blank CSV Template
       document.getElementById('btnDownloadTemplate').onclick = () => {
         const csvHeader = "id,name,birthday,deathDate,relation,bio,photo,parent1,parent2,spouse\n";
-        const sampleRow1 = '1,Grandpa Robert,1948-06-12,2019-11-04,Grandfather,"Civil engineer",, , ,2\n';
-        const sampleRow2 = '2,Grandma Margaret,1952-03-24,,Grandmother,"Teacher",, , ,1\n';
+        const sampleRow1 = '1,Robert Vance,1948-06-12,2019-11-04,Grandfather,"Civil engineer",,,2\n';
+        const sampleRow2 = '2,Margaret Vance,1952-03-24,,Grandmother,"Teacher",,,1\n';
         const sampleRow3 = '3,David Vance,1974-11-15,,Father,"Software Engineer",,1,2,4\n';
-        const sampleRow4 = '4,Sarah Vance,1977-08-09,,Mother,"Doctor",, , ,3\n';
+        const sampleRow4 = '4,Sarah Vance,1977-08-09,,Mother,"Doctor",,,3\n';
         const sampleRow5 = '5,Lucas Vance,2002-12-05,,Son,"College student",,3,4,\n';
         
         const blob = new Blob([csvHeader + sampleRow1 + sampleRow2 + sampleRow3 + sampleRow4 + sampleRow5], { type: 'text/csv;charset=utf-8;' });
@@ -868,7 +1221,6 @@
         a.click();
       };
 
-      // Handle CSV File Selection
       document.getElementById('csvFileInput').addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -891,22 +1243,18 @@
         reader.readAsText(file);
       });
 
-      // Execute CSV Import
       document.getElementById('btnExecuteCsvImport').onclick = () => {
         if (!parsedCsvResult || parsedCsvResult.length === 0) return;
 
         const replaceAll = document.getElementById('chkReplaceAll').checked;
         if (replaceAll) {
           familyData = parsedCsvResult;
+          if (familyData.length > 0) currentFocusId = familyData[0].id;
         } else {
-          // Merge or update existing
           parsedCsvResult.forEach(item => {
             const idx = familyData.findIndex(x => x.id === item.id);
-            if (idx !== -1) {
-              familyData[idx] = item;
-            } else {
-              familyData.push(item);
-            }
+            if (idx !== -1) familyData[idx] = item;
+            else familyData.push(item);
           });
         }
 
@@ -1063,6 +1411,7 @@
     };
 
     function switchView(mode) {
+      activeViewMode = mode;
       if (mode === 'focus') {
         document.getElementById('focusView').classList.remove('hidden');
         document.getElementById('canvasView').classList.add('hidden');
@@ -1078,22 +1427,36 @@
     }
 
     // -----------------------------------------------------------------
-    // 8. PAN/ZOOM & DRAG GESTURES (TOUCH & MOUSE SUPPORT)
+    // 9. PAN/ZOOM & CONDITIONAL RESET BUTTON
     // -----------------------------------------------------------------
     let panX = 0, panY = 0, scale = 1;
     function setupPanZoom() {
       const viewport = document.getElementById('canvasView');
       const container = document.getElementById('treeContainer');
+      const resetBtn = document.getElementById('btnResetView');
+
+      function updateResetButtonState() {
+        const isModified = Math.abs(panX) > 1 || Math.abs(panY) > 1 || Math.abs(scale - 1) > 0.01;
+        if (isModified) {
+          resetBtn.disabled = false;
+          resetBtn.classList.remove('opacity-40', 'cursor-not-allowed');
+          resetBtn.classList.add('active:bg-slate-100', 'hover:bg-slate-50', 'text-indigo-700');
+        } else {
+          resetBtn.disabled = true;
+          resetBtn.classList.add('opacity-40', 'cursor-not-allowed');
+          resetBtn.classList.remove('active:bg-slate-100', 'hover:bg-slate-50', 'text-indigo-700');
+        }
+      }
 
       function updateTransform() {
         container.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+        updateResetButtonState();
       }
 
       let isDragging = false;
       let startX = 0, startY = 0;
       let initialDist = 0, initialScale = 1, anchorWorldX = 0, anchorWorldY = 0;
 
-      // Mouse drag handlers
       viewport.addEventListener('mousedown', (e) => {
         if (e.target.closest('#treeContainer > div')) return;
         isDragging = true;
@@ -1110,7 +1473,6 @@
 
       window.addEventListener('mouseup', () => { isDragging = false; });
 
-      // Mouse wheel zoom
       viewport.addEventListener('wheel', (e) => {
         e.preventDefault();
         const rect = viewport.getBoundingClientRect();
@@ -1127,7 +1489,6 @@
         updateTransform();
       }, { passive: false });
 
-      // Touch handlers (Single finger pan + Two-finger pinch)
       viewport.addEventListener('touchstart', (e) => {
         if (e.touches.length === 1) {
           isDragging = true;
@@ -1168,7 +1529,7 @@
 
       document.getElementById('btnZoomIn').onclick = () => { scale = Math.min(scale * 1.25, 3); updateTransform(); };
       document.getElementById('btnZoomOut').onclick = () => { scale = Math.max(scale / 1.25, 0.3); updateTransform(); };
-      document.getElementById('btnResetView').onclick = () => { scale = 1; panX = 0; panY = 0; updateTransform(); };
+      resetBtn.onclick = () => { scale = 1; panX = 0; panY = 0; updateTransform(); };
     }
 
     window.onload = initApp;
