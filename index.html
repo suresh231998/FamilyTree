@@ -40,7 +40,7 @@
 
     <!-- Search Bar -->
     <div class="relative flex-1 max-w-xs">
-      <input type="text" id="searchInput" placeholder="Search relative..." class="w-full px-2.5 py-1 text-xs border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50">
+      <input type="text" id="searchInput" placeholder="Search relative (English / தமிழ்)..." class="w-full px-2.5 py-1 text-xs border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50">
       <div id="searchResults" class="absolute left-0 right-0 top-8 bg-white border border-slate-200 shadow-xl rounded-lg max-h-48 overflow-y-auto hidden z-50"></div>
     </div>
     
@@ -160,7 +160,7 @@
         
         <div class="space-y-2 bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs">
           <div class="flex items-center justify-between opacity-60">
-            <span class="font-semibold text-slate-700">Full Name</span>
+            <span class="font-semibold text-slate-700">Full Name (English)</span>
             <span class="text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded font-semibold">Mandatory</span>
           </div>
           <div class="flex items-center justify-between opacity-60">
@@ -170,6 +170,10 @@
 
           <hr class="border-slate-200 my-1">
 
+          <label class="flex items-center justify-between cursor-pointer py-1">
+            <span class="font-medium text-slate-700">Tamil Name (தமிழ் பெயர்)</span>
+            <input type="checkbox" id="cfgShowTamil" class="w-4 h-4 accent-indigo-600 rounded">
+          </label>
           <label class="flex items-center justify-between cursor-pointer py-1">
             <span class="font-medium text-slate-700">Relation Title (e.g. Father)</span>
             <input type="checkbox" id="cfgShowRelation" class="w-4 h-4 accent-indigo-600 rounded">
@@ -251,7 +255,7 @@
       
       <p class="text-xs text-slate-500 leading-relaxed">
         Upload a spreadsheet (.csv) containing your relatives. Columns:
-        <code class="text-[11px] bg-slate-100 px-1 py-0.5 rounded text-indigo-600 font-mono block mt-1">id, name, birthday, deathDate, relation, bio, photo, parent1, parent2, spouse</code>
+        <code class="text-[11px] bg-slate-100 px-1 py-0.5 rounded text-indigo-600 font-mono block mt-1">id, name, tamilName, birthday, deathDate, relation, bio, parent1, parent2, spouse, photo</code>
       </p>
 
       <div class="flex gap-2">
@@ -292,9 +296,15 @@
       <form id="memberForm" class="space-y-3 text-xs">
         <input type="hidden" id="editPersonId">
         
-        <div>
-          <label class="block font-semibold text-slate-600 mb-1">Full Name *</label>
-          <input type="text" id="inpName" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">Full Name (English) *</label>
+            <input type="text" id="inpName" required placeholder="e.g. Kariyappa Gowder" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">Tamil Name (தமிழ் பெயர்)</label>
+            <input type="text" id="inpTamilName" placeholder="e.g. கரியப்ப கவுடர்" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+          </div>
         </div>
 
         <div class="grid grid-cols-2 gap-2">
@@ -372,6 +382,7 @@
 
     let treeSettings = {
       siteTitle: "Family Tree",
+      showTamil: true,
       showRelation: true,
       showAge: true,
       showBio: false,
@@ -379,8 +390,8 @@
     };
 
     let familyData = [
-      { id: '1', name: 'Kariyappa Gowder (கரியப்ப கவுடர்)', birthday: null, deathDate: null, photo: '', relation: 'Grandfather', bio: '', parents: [], spouse: '2' },
-      { id: '2', name: 'Marammal (மரம்மாள்)', birthday: null, deathDate: null, photo: '', relation: 'Grandmother', bio: '', parents: [], spouse: '1' }
+      { id: '1', name: 'Kariyappa Gowder', tamilName: 'கரியப்ப கவுடர்', birthday: null, deathDate: null, photo: '', relation: 'Grandfather', bio: '', parents: [], spouse: '2' },
+      { id: '2', name: 'Marammal', tamilName: 'மரம்மாள்', birthday: null, deathDate: null, photo: '', relation: 'Grandmother', bio: '', parents: [], spouse: '1' }
     ];
 
     let currentFocusId = '1';
@@ -496,8 +507,22 @@
     }
 
     // -----------------------------------------------------------------
-    // 3. DATE PARSING HELPERS
+    // 3. NAME SPLITTING & DATE PARSING HELPERS
     // -----------------------------------------------------------------
+    function getDisplayNames(person) {
+      let eng = (person.name || '').trim();
+      let tam = (person.tamilName || '').trim();
+      // Auto-extract if old format "English Name (தமிழ் பெயர்)" exists in database
+      if (!tam) {
+        const match = eng.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
+        if (match && /[\u0B80-\u0BFF]/.test(match[2])) {
+          eng = match[1].trim();
+          tam = match[2].trim();
+        }
+      }
+      return { eng, tam };
+    }
+
     function parseFlexibleDate(dateStr) {
       if (!dateStr) return null;
       const clean = String(dateStr).trim();
@@ -532,14 +557,13 @@
     }
 
     // -----------------------------------------------------------------
-    // 4. FIXED GENERATION LEVEL & SUBTREE-CENTERED TREE ENGINE
+    // 4. GENERATION LEVEL & SUBTREE-CENTERED TREE ENGINE
     // -----------------------------------------------------------------
     function calculateGenerations() {
       const levels = {};
       const byId = {};
       familyData.forEach(p => { byId[p.id] = p; });
 
-      // Step 1: Compute depth strictly from ancestors (ignore spouses initially)
       function getAncestorDepth(id, visited = new Set()) {
         if (visited.has(id)) return 0;
         visited.add(id);
@@ -554,7 +578,6 @@
         levels[p.id] = getAncestorDepth(p.id);
       });
 
-      // Step 2: Pull spouses who married into the family onto their partner's generation level
       let changed = true;
       let loops = 0;
       while (changed && loops < 10) {
@@ -569,7 +592,6 @@
           }
         });
 
-        // Re-propagate children below aligned parents
         familyData.forEach(p => {
           if (p.parents && p.parents.length > 0) {
             const validParents = p.parents.filter(pid => byId[pid]);
@@ -596,8 +618,8 @@
       container.appendChild(svg);
       svg.innerHTML = '';
 
-      const CARD_W = 205;
-      const CARD_H = treeSettings.showBio ? 96 : 76;
+      const CARD_W = 220;
+      const CARD_H = (treeSettings.showTamil || treeSettings.showBio) ? 92 : 76;
       const SPOUSE_GAP = 28;
       const SIBLING_GAP = 44;
       const GAP_Y = CARD_H + 64;
@@ -789,13 +811,19 @@
     }
 
     // -----------------------------------------------------------------
-    // 5. TILE CARD BUILDER
+    // 5. TILE CARD BUILDER (English Name + Separate Tamil Name Below)
     // -----------------------------------------------------------------
     function createMemberCardHtml(person, isFocus = false) {
-      const initials = person.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
+      const { eng, tam } = getDisplayNames(person);
+      const initials = eng.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
       const avatarHtml = person.photo 
         ? `<img src="${person.photo}" class="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0">`
         : `<div class="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-xs border border-indigo-200 shrink-0">${initials}</div>`;
+
+      // Tamil name rendered directly underneath English name when enabled & present
+      const tamilHtml = (treeSettings.showTamil && tam !== '')
+        ? `<p class="text-[11px] font-medium text-slate-600 leading-snug break-words">${tam}</p>`
+        : '';
 
       const relationHtml = (treeSettings.showRelation && person.relation && person.relation.trim() !== '')
         ? `<p class="text-[10px] text-indigo-600 font-medium truncate">${person.relation}</p>`
@@ -817,7 +845,8 @@
         <div class="flex items-center gap-2.5 w-full">
           ${avatarHtml}
           <div class="min-w-0 flex-1">
-            <h4 class="font-bold text-slate-800 text-xs truncate leading-tight">${person.name}</h4>
+            <h4 class="font-bold text-slate-800 text-xs leading-tight break-words">${eng}</h4>
+            ${tamilHtml}
             ${relationHtml}
             ${datesHtml}
             ${bioHtml}
@@ -951,7 +980,8 @@
         const diffDays = Math.ceil((nextBday - today) / (1000 * 60 * 60 * 24));
         const turningAge = nextBday.getFullYear() - bdate.getFullYear();
         if (diffDays <= windowDays) {
-          upcoming.push({ name: p.name, days: diffDays, age: turningAge });
+          const { eng } = getDisplayNames(p);
+          upcoming.push({ name: eng, days: diffDays, age: turningAge });
         }
       });
 
@@ -973,7 +1003,8 @@
       const p = familyData.find(item => item.id === id);
       if (!p) return;
 
-      const initials = p.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
+      const { eng, tam } = getDisplayNames(p);
+      const initials = eng.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
       const avatarHtml = p.photo 
         ? `<img src="${p.photo}" class="w-16 h-16 rounded-full object-cover border-2 border-indigo-200 mx-auto">`
         : `<div class="w-16 h-16 rounded-full bg-indigo-100 text-indigo-700 font-bold text-lg flex items-center justify-center border-2 border-indigo-200 mx-auto">${initials}</div>`;
@@ -986,17 +1017,18 @@
       const content = `
         <div class="text-center">
           ${avatarHtml}
-          <h3 class="text-base font-bold text-slate-800 mt-2">${p.name}</h3>
-          ${p.relation ? `<p class="text-xs text-indigo-600 font-semibold">${p.relation}</p>` : ''}
+          <h3 class="text-base font-bold text-slate-800 mt-2">${eng}</h3>
+          ${tam ? `<p class="text-sm font-medium text-slate-600">${tam}</p>` : ''}
+          ${p.relation ? `<p class="text-xs text-indigo-600 font-semibold mt-0.5">${p.relation}</p>` : ''}
           ${dateText ? `<p class="text-xs text-slate-400 mt-0.5">${dateText}</p>` : ''}
         </div>
 
         ${p.bio ? `<div class="bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs text-slate-600 leading-relaxed">${p.bio}</div>` : ''}
 
         <div class="text-xs space-y-1.5 pt-1 border-t border-slate-100">
-          <div><strong class="text-slate-500">Parents:</strong> ${parents.length > 0 ? parents.map(pt => `<span class="text-indigo-600 cursor-pointer font-medium hover:underline" onclick="openPersonDetailsModal('${pt.id}')">${pt.name}</span>`).join(', ') : '<span class="text-slate-400 italic">None recorded</span>'}</div>
-          <div><strong class="text-slate-500">Spouse:</strong> ${spouse ? `<span class="text-indigo-600 cursor-pointer font-medium hover:underline" onclick="openPersonDetailsModal('${spouse.id}')">${spouse.name}</span>` : '<span class="text-slate-400 italic">None</span>'}</div>
-          <div><strong class="text-slate-500">Children:</strong> ${children.length > 0 ? children.map(c => `<span class="text-indigo-600 cursor-pointer font-medium hover:underline" onclick="openPersonDetailsModal('${c.id}')">${c.name}</span>`).join(', ') : '<span class="text-slate-400 italic">None recorded</span>'}</div>
+          <div><strong class="text-slate-500">Parents:</strong> ${parents.length > 0 ? parents.map(pt => `<span class="text-indigo-600 cursor-pointer font-medium hover:underline" onclick="openPersonDetailsModal('${pt.id}')">${getDisplayNames(pt).eng}</span>`).join(', ') : '<span class="text-slate-400 italic">None recorded</span>'}</div>
+          <div><strong class="text-slate-500">Spouse:</strong> ${spouse ? `<span class="text-indigo-600 cursor-pointer font-medium hover:underline" onclick="openPersonDetailsModal('${spouse.id}')">${getDisplayNames(spouse).eng}</span>` : '<span class="text-slate-400 italic">None</span>'}</div>
+          <div><strong class="text-slate-500">Children:</strong> ${children.length > 0 ? children.map(c => `<span class="text-indigo-600 cursor-pointer font-medium hover:underline" onclick="openPersonDetailsModal('${c.id}')">${getDisplayNames(c).eng}</span>`).join(', ') : '<span class="text-slate-400 italic">None recorded</span>'}</div>
         </div>
 
         <div class="flex gap-2 pt-2">
@@ -1012,10 +1044,11 @@
     };
 
     // -----------------------------------------------------------------
-    // 7. CSV PARSER
+    // 7. CSV PARSER (Handles BOM, Tamil UTF-8, & Photo as Last Column)
     // -----------------------------------------------------------------
     function parseCsvToObjects(csvText) {
-      const lines = csvText.trim().split(/\r\n|\n/).filter(line => line.trim().length > 0);
+      const cleanText = csvText.replace(/^\uFEFF/, '');
+      const lines = cleanText.trim().split(/\r\n|\n/).filter(line => line.trim().length > 0);
       if (lines.length < 2) return [];
 
       function splitCsvLine(line) {
@@ -1052,9 +1085,21 @@
           if (obj.parent1) parents.push(String(obj.parent1));
           if (obj.parent2 && obj.parent2 !== obj.parent1) parents.push(String(obj.parent2));
 
+          // Auto-split if tamilName column is empty but name has "(தமிழ்)"
+          let engName = obj.name;
+          let tamName = obj.tamilName || '';
+          if (!tamName) {
+            const match = engName.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
+            if (match && /[\u0B80-\u0BFF]/.test(match[2])) {
+              engName = match[1].trim();
+              tamName = match[2].trim();
+            }
+          }
+
           results.push({
             id: String(obj.id),
-            name: obj.name,
+            name: engName,
+            tamilName: tamName,
             birthday: obj.birthday || null,
             deathDate: obj.deathDate || null,
             relation: obj.relation || '',
@@ -1077,6 +1122,7 @@
       };
 
       document.getElementById('btnAdminSettings').onclick = () => {
+        document.getElementById('cfgShowTamil').checked = !!treeSettings.showTamil;
         document.getElementById('cfgShowRelation').checked = !!treeSettings.showRelation;
         document.getElementById('cfgShowAge').checked = !!treeSettings.showAge;
         document.getElementById('cfgShowBio').checked = !!treeSettings.showBio;
@@ -1090,6 +1136,7 @@
       };
 
       document.getElementById('btnSaveSettings').onclick = () => {
+        treeSettings.showTamil = document.getElementById('cfgShowTamil').checked;
         treeSettings.showRelation = document.getElementById('cfgShowRelation').checked;
         treeSettings.showAge = document.getElementById('cfgShowAge').checked;
         treeSettings.showBio = document.getElementById('cfgShowBio').checked;
@@ -1099,21 +1146,28 @@
         document.getElementById('settingsModal').classList.add('hidden');
       };
 
+      // Bilingual Search (English + Tamil)
       const searchInput = document.getElementById('searchInput');
       const searchResults = document.getElementById('searchResults');
       searchInput.addEventListener('input', () => {
         const q = searchInput.value.toLowerCase().trim();
         if (!q) { searchResults.classList.add('hidden'); return; }
-        const matches = familyData.filter(p => p.name.toLowerCase().includes(q));
+        const matches = familyData.filter(p => {
+          const { eng, tam } = getDisplayNames(p);
+          return eng.toLowerCase().includes(q) || tam.toLowerCase().includes(q);
+        });
         if (matches.length === 0) {
           searchResults.innerHTML = `<div class="p-2 text-xs text-slate-400 text-center">No match found</div>`;
         } else {
-          searchResults.innerHTML = matches.map(m => `
-            <div class="px-3 py-2 hover:bg-slate-100 cursor-pointer flex items-center gap-2 border-b border-slate-50 last:border-0" onclick="setFocus('${m.id}'); openPersonDetailsModal('${m.id}'); document.getElementById('searchResults').classList.add('hidden'); document.getElementById('searchInput').value='';">
-              <span class="text-xs font-bold text-slate-700">${m.name}</span>
-              ${m.relation ? `<span class="text-[10px] text-indigo-600">${m.relation}</span>` : ''}
-            </div>
-          `).join('');
+          searchResults.innerHTML = matches.map(m => {
+            const { eng, tam } = getDisplayNames(m);
+            return `
+              <div class="px-3 py-2 hover:bg-slate-100 cursor-pointer border-b border-slate-50 last:border-0" onclick="setFocus('${m.id}'); openPersonDetailsModal('${m.id}'); document.getElementById('searchResults').classList.add('hidden'); document.getElementById('searchInput').value='';">
+                <div class="text-xs font-bold text-slate-700">${eng}</div>
+                ${tam ? `<div class="text-[11px] text-slate-500">${tam}</div>` : ''}
+              </div>
+            `;
+          }).join('');
         }
         searchResults.classList.remove('hidden');
       });
@@ -1220,11 +1274,12 @@
         document.getElementById('csvModal').classList.add('hidden');
       };
 
+      // Download Blank CSV Template (With photo as the last column)
       document.getElementById('btnDownloadTemplate').onclick = () => {
-        const csvHeader = "id,name,birthday,deathDate,relation,bio,photo,parent1,parent2,spouse\n";
-        const sampleRow1 = '1,Robert Vance,1948-06-12,2019-11-04,Grandfather,"Civil engineer",,,,2\n';
-        const sampleRow2 = '2,Margaret Vance,1952-03-24,,Grandmother,"Teacher",,,,1\n';
-        const sampleRow3 = '3,David Vance,1974-11-15,,Father,"Software Engineer",,,1,2,4\n';
+        const csvHeader = "\uFEFFid,name,tamilName,birthday,deathDate,relation,bio,parent1,parent2,spouse,photo\n";
+        const sampleRow1 = '1,Kariyappa Gowder,கரியப்ப கவுடர்,,,Grandfather,,,,2,\n';
+        const sampleRow2 = '2,Marammal,மரம்மாள்,,,Grandmother,,,,1,\n';
+        const sampleRow3 = '3,Rangaraj,ரங்கராஜ்,,,,,1,2,4,\n';
         
         const blob = new Blob([csvHeader + sampleRow1 + sampleRow2 + sampleRow3], { type: 'text/csv;charset=utf-8;' });
         const a = document.createElement('a');
@@ -1283,7 +1338,7 @@
           const img = new Image();
           img.onload = () => {
             const cvs = document.createElement('canvas');
-            const maxDim = 200;
+            const maxDim = 160;
             let w = img.width, h = img.height;
             if (w > h) { if (w > maxDim) { h *= maxDim / w; w = maxDim; } }
             else { if (h > maxDim) { w *= maxDim / h; h = maxDim; } }
@@ -1311,6 +1366,7 @@
         const member = {
           id: id || Date.now().toString(),
           name: document.getElementById('inpName').value.trim(),
+          tamilName: document.getElementById('inpTamilName').value.trim(),
           birthday: document.getElementById('inpBirthday').value || null,
           deathDate: document.getElementById('inpDeathDate').value || null,
           photo: document.getElementById('inpPhotoData').value || '',
@@ -1357,18 +1413,21 @@
       const b = familyData.find(p => p.id === bId);
       if (!a || !b) return;
 
-      if ((b.parents || []).includes(a.id)) { res.innerText = `${a.name} is the Parent of ${b.name}`; return; }
-      if ((a.parents || []).includes(b.id)) { res.innerText = `${a.name} is the Child of ${b.name}`; return; }
-      if (a.spouse === b.id) { res.innerText = `${a.name} and ${b.name} are Spouses`; return; }
+      const aName = getDisplayNames(a).eng;
+      const bName = getDisplayNames(b).eng;
+
+      if ((b.parents || []).includes(a.id)) { res.innerText = `${aName} is the Parent of ${bName}`; return; }
+      if ((a.parents || []).includes(b.id)) { res.innerText = `${aName} is the Child of ${bName}`; return; }
+      if (a.spouse === b.id) { res.innerText = `${aName} and ${bName} are Spouses`; return; }
 
       const aParents = a.parents || [];
       const bParents = b.parents || [];
       const sharedParents = aParents.filter(p => bParents.includes(p));
-      if (sharedParents.length > 0) { res.innerText = `${a.name} and ${b.name} are Siblings`; return; }
+      if (sharedParents.length > 0) { res.innerText = `${aName} and ${bName} are Siblings`; return; }
 
       for (let pId of bParents) {
         const p = familyData.find(x => x.id === pId);
-        if (p && (p.parents || []).includes(a.id)) { res.innerText = `${a.name} is the Grandparent of ${b.name}`; return; }
+        if (p && (p.parents || []).includes(a.id)) { res.innerText = `${aName} is the Grandparent of ${bName}`; return; }
       }
 
       res.innerText = `Connected relatives in the same extended lineage`;
@@ -1381,10 +1440,10 @@
       const kinA = document.getElementById('kinPersonA');
       const kinB = document.getElementById('kinPersonB');
 
-      const opts = `<option value="">-- None --</option>` + familyData.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+      const opts = `<option value="">-- None --</option>` + familyData.map(p => `<option value="${p.id}">${getDisplayNames(p).eng}</option>`).join('');
       p1.innerHTML = opts; p2.innerHTML = opts; sp.innerHTML = opts;
-      kinA.innerHTML = familyData.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
-      kinB.innerHTML = familyData.map((p, idx) => `<option value="${p.id}" ${idx===1?'selected':''}>${p.name}</option>`).join('');
+      kinA.innerHTML = familyData.map(p => `<option value="${p.id}">${getDisplayNames(p).eng}</option>`).join('');
+      kinB.innerHTML = familyData.map((p, idx) => `<option value="${p.id}" ${idx===1?'selected':''}>${getDisplayNames(p).eng}</option>`).join('');
     }
 
     window.openEditModal = function(id = null) {
@@ -1396,9 +1455,11 @@
       if (id) {
         const p = familyData.find(x => x.id === id);
         if (!p) return;
+        const { eng, tam } = getDisplayNames(p);
         document.getElementById('modalTitle').innerText = 'Edit Relative';
         document.getElementById('editPersonId').value = p.id;
-        document.getElementById('inpName').value = p.name;
+        document.getElementById('inpName').value = eng;
+        document.getElementById('inpTamilName').value = tam;
         document.getElementById('inpBirthday').value = p.birthday || '';
         document.getElementById('inpDeathDate').value = p.deathDate || '';
         document.getElementById('inpBio').value = p.bio || '';
